@@ -1,80 +1,177 @@
+const REGENCIES = {
+  DENPASAR: 'Denpasar', GIANYAR: 'Gianyar', BADUNG: 'Badung', TABANAN: 'Tabanan',
+  JEMBRANA: 'Jembrana', BULELENG: 'Buleleng', BANGLI: 'Bangli', KLUNGKUNG: 'Klungkung', KARANGASEM: 'Karangasem'
+};
+
+const DISTRICT_TO_REGENCY = {
+  // Gianyar
+  SUKAWATI:'Gianyar', BLAHBATUH:'Gianyar', GIANYAR:'Gianyar', UBUD:'Gianyar',
+  TEGALLALANG:'Gianyar', TAMPAKSIRING:'Gianyar', PAYANGAN:'Gianyar',
+  // Bangli
+  BANGLI:'Bangli', SUSUT:'Bangli', TEMBUKU:'Bangli', KINTAMANI:'Bangli',
+  // Karangasem
+  KARANGASEM:'Karangasem', ABANG:'Karangasem', BEBANDEM:'Karangasem', RENDANG:'Karangasem',
+  SELAT:'Karangasem', SIDEMEN:'Karangasem', MANGGIS:'Karangasem', KUBU:'Karangasem',
+  // Klungkung
+  KLUNGKUNG:'Klungkung', BANJARANGKAN:'Klungkung', DAWAN:'Klungkung', NUSA_PENIDA:'Klungkung',
+  // Badung
+  KUTA:'Badung', KUTA_SELATAN:'Badung', KUTA_UTARA:'Badung', MENGWI:'Badung',
+  ABIANSEMAL:'Badung', PETANG:'Badung',
+  // Tabanan
+  TABANAN:'Tabanan', KEDIRI:'Tabanan', MARGA:'Tabanan', BATURITI:'Tabanan', PENEBEL:'Tabanan',
+  KERAMBITAN:'Tabanan', SELEMADEG:'Tabanan', PUPUAN:'Tabanan',
+  // Jembrana
+  NEGARA:'Jembrana', MELAYA:'Jembrana', MENDOYO:'Jembrana', PEKUTATAN:'Jembrana', JEMBRANA:'Jembrana',
+  // Buleleng
+  BULELENG:'Buleleng', GEROKGAK:'Buleleng', SERIRIT:'Buleleng', BUSUNGBIU:'Buleleng',
+  BANJAR:'Buleleng', SUKASADA:'Buleleng', SAWAN:'Buleleng', KUBUTAMBAHAN:'Buleleng', TEJAKULA:'Buleleng'
+};
+
+const PLACE_HINTS = {
+  BATUBULAN:['Sukawati','Gianyar'], BURUAN:['Blahbatuh','Gianyar'], BEDULU:['Blahbatuh','Gianyar'],
+  PEJENG:['Tampaksiring','Gianyar'], MANUKAYA:['Tampaksiring','Gianyar'], SINGAPADU:['Sukawati','Gianyar'],
+  CELUK:['Sukawati','Gianyar'], GUWANG:['Sukawati','Gianyar'], MAS:['Ubud','Gianyar'],
+  KUTRI:['Blahbatuh','Gianyar'], PELIATAN:['Ubud','Gianyar'],
+  PERING_SARI:['Selat','Karangasem'], YANGAPI:['Tembuku','Bangli'], PENINJOAN:['Tembuku','Bangli'],
+  PENGOTAN:['Bangli','Bangli'], KUBUTAMBAHAN:['Kubutambahan','Buleleng']
+};
+
 function cleanAddress(input) {
   return String(input || '')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
-    .replace(/\bJL\.?\b/g, 'JALAN')
-    .replace(/\bJLN\.?\b/g, 'JALAN')
+    .replace(/\bJLN?\.?\b/g, 'JALAN')
     .replace(/\bBR\.?\b/g, 'BANJAR')
+    .replace(/\bDSN\.?\b/g, 'DUSUN')
     .replace(/\bDS\.?\b/g, 'DESA')
+    .replace(/\bLINK\.?\b|\bLINGK\.?\b/g, 'LINGKUNGAN')
     .replace(/\bKEL\.?\b/g, 'KELURAHAN')
     .replace(/\bKEC\.?\b/g, 'KECAMATAN')
     .replace(/\bKAB\.?\b/g, 'KABUPATEN')
     .replace(/\bDPS\b/g, 'DENPASAR')
     .replace(/\bGYR\b/g, 'GIANYAR')
-    .replace(/\s*-\s*-+/g, ' ')
-    .replace(/[;|/]/g, ',')
+    .replace(/\bBLAH\s+BATUH\b/g, 'BLAHBATUH')
+    .replace(/\bTEGAL+ALANG\b|\bTEGALLANG\b/g, 'TEGALLALANG')
+    .replace(/\bTAMPAK\s*SIRING\b/g, 'TAMPAKSIRING')
+    .replace(/\bKARANG\s+ASEM\b/g, 'KARANGASEM')
+    .replace(/\bPERING\s*SARI\b/g, 'PERING SARI')
+    .replace(/[;|/]+/g, ',')
+    .replace(/\s*[-–—]\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .replace(/\s*,\s*/g, ', ')
     .replace(/,+/g, ',')
+    .replace(/^,|,$/g, '')
     .trim();
 }
 
+function titleCase(s) {
+  return s.toLowerCase().replace(/(^|[\s,])([a-z])/g, (_, p, c) => p + c.toUpperCase());
+}
+
+function inferArea(cleaned) {
+  const tokenText = cleaned.replace(/[^A-Z0-9 ]/g, ' ');
+  let regency = '';
+  for (const [key, value] of Object.entries(REGENCIES)) {
+    if (new RegExp(`\\b${key}\\b`).test(tokenText)) { regency = value; break; }
+  }
+  let district = '';
+  for (const [key, value] of Object.entries(DISTRICT_TO_REGENCY)) {
+    const phrase = key.replace(/_/g, ' ');
+    if (new RegExp(`\\b${phrase}\\b`).test(tokenText)) {
+      district = titleCase(phrase);
+      if (!regency) regency = value;
+      break;
+    }
+  }
+  let placeHint = null;
+  for (const [key, value] of Object.entries(PLACE_HINTS)) {
+    const phrase = key.replace(/_/g, ' ');
+    if (new RegExp(`\\b${phrase}\\b`).test(tokenText)) { placeHint = value; break; }
+  }
+  if (placeHint) {
+    if (!district) district = placeHint[0];
+    if (!regency) regency = placeHint[1];
+  }
+  return { district, regency };
+}
+
+function stripPrefixes(s) {
+  return s.replace(/\b(BANJAR|DUSUN|LINGKUNGAN|DESA|KELURAHAN|KECAMATAN|KABUPATEN|DINAS)\b/gi, ' ')
+    .replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').trim();
+}
+
 function buildQueries(address) {
-  const c = cleanAddress(address).replace(/,?\s*BALI\s*,?\s*INDONESIA$/i, '').trim();
-  const parts = c.split(',').map(x => x.trim()).filter(Boolean);
-  const noHouse = c.replace(/\b(NO|NOMOR)\.?\s*\d+[A-Z]?\b/gi, '').replace(/\s+/g, ' ').trim();
-  const withoutLocalPrefix = c.replace(/\b(BANJAR|DUSUN|LINGKUNGAN|LINK)\s+(DINAS\s+)?/gi, '').trim();
-  const tail3 = parts.slice(-3).join(', ');
-  const tail2 = parts.slice(-2).join(', ');
-  return [...new Set([
-    `${c}, Bali, Indonesia`,
-    `${noHouse}, Bali, Indonesia`,
-    `${withoutLocalPrefix}, Bali, Indonesia`,
-    tail3 ? `${tail3}, Bali, Indonesia` : '',
-    tail2 ? `${tail2}, Bali, Indonesia` : '',
-    `${c}, Indonesia`
-  ].filter(Boolean))];
+  const cleaned = cleanAddress(address)
+    .replace(/(?:,?\s*)BALI(?:,?\s*INDONESIA)?$/i, '')
+    .replace(/(?:,?\s*)INDONESIA$/i, '').trim();
+  const { district, regency } = inferArea(cleaned);
+  const parts = cleaned.split(',').map(x => x.trim()).filter(Boolean);
+  const withoutHouse = cleaned
+    .replace(/\b(NO|NOMOR)\.?\s*\d+[A-Z]?(?:\s*BLOK\s*[A-Z0-9.-]+)?\b/gi, '')
+    .replace(/\bBLOK\s*[A-Z0-9.-]+\b/gi, '')
+    .replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').trim();
+  const simple = stripPrefixes(withoutHouse);
+  const first = parts[0] || '';
+  const firstSimple = stripPrefixes(first);
+  const tail = parts.slice(-3).join(', ');
+  const area = [district, regency, 'Bali', 'Indonesia'].filter(Boolean).join(', ');
+  const queries = [
+    [withoutHouse, regency && !withoutHouse.includes(regency.toUpperCase()) ? regency : '', 'Bali, Indonesia'].filter(Boolean).join(', '),
+    [simple, regency && !simple.includes(regency.toUpperCase()) ? regency : '', 'Bali, Indonesia'].filter(Boolean).join(', '),
+    [firstSimple, area].filter(Boolean).join(', '),
+    [tail, regency && !tail.toUpperCase().includes(String(regency).toUpperCase()) ? regency : '', 'Bali, Indonesia'].filter(Boolean).join(', '),
+    area
+  ];
+  return [...new Set(queries.map(q => q.replace(/,\s*,/g, ',').trim()).filter(q => q.length > 8))];
 }
 
 async function searchNominatim(query) {
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('format', 'jsonv2');
-  url.searchParams.set('limit', '1');
+  url.searchParams.set('limit', '5');
   url.searchParams.set('countrycodes', 'id');
   url.searchParams.set('addressdetails', '1');
-  url.searchParams.set('viewbox', '114.4,-8.0,115.8,-8.9');
-  url.searchParams.set('bounded', '0');
+  url.searchParams.set('viewbox', '114.35,-8.00,115.75,-8.95');
+  url.searchParams.set('bounded', '1');
   url.searchParams.set('q', query);
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'Accept-Language': 'id',
-      'User-Agent': 'PetaKendaraanService/3.0 (contact: app-owner)'
+      'Accept-Language': 'id,en;q=0.8',
+      'User-Agent': 'PetaKendaraanService/4.0 (Vercel application)'
     }
   });
-  if (!response.ok) throw new Error(`Layanan alamat gagal (${response.status})`);
+  if (!response.ok) throw new Error(`Layanan alamat sedang sibuk (${response.status})`);
   const data = await response.json();
-  return Array.isArray(data) ? data[0] : null;
+  if (!Array.isArray(data) || !data.length) return null;
+  return data.find(x => {
+    const lat = Number(x.lat), lon = Number(x.lon);
+    return lat >= -8.95 && lat <= -8.0 && lon >= 114.35 && lon <= 115.75;
+  }) || null;
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+  res.setHeader('Cache-Control', 's-maxage=604800, stale-while-revalidate=2592000');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method tidak diizinkan' });
   const original = String(req.query.address || '').trim();
+  const attempt = Math.max(0, Math.min(4, Number(req.query.attempt || 0)));
   if (!original) return res.status(400).json({ error: 'Alamat wajib diisi' });
-  if (original.length > 350) return res.status(400).json({ error: 'Alamat terlalu panjang' });
   const cleaned = cleanAddress(original);
-  const attempts = buildQueries(cleaned);
+  const queries = buildQueries(cleaned);
+  const query = queries[attempt];
+  if (!query) return res.status(200).json({ found: false, cleanedAddress: titleCase(cleaned), attempts: queries.length });
   try {
-    for (const query of attempts) {
-      const hit = await searchNominatim(query);
-      if (hit) return res.status(200).json({found:true,lat:Number(hit.lat),lng:Number(hit.lon),displayName:hit.display_name||'',cleanedAddress:cleaned,queryUsed:query});
-    }
-    return res.status(200).json({found:false,cleanedAddress:cleaned,attempts});
+    const hit = await searchNominatim(query);
+    if (!hit) return res.status(200).json({ found: false, cleanedAddress: titleCase(cleaned), queryUsed: query, attempt, attempts: queries.length });
+    const precision = attempt <= 1 ? 'alamat' : attempt <= 3 ? 'wilayah' : 'kabupaten';
+    return res.status(200).json({
+      found: true, lat: Number(hit.lat), lng: Number(hit.lon), displayName: hit.display_name || '',
+      cleanedAddress: titleCase(cleaned), queryUsed: query, attempt, attempts: queries.length, precision
+    });
   } catch (error) {
-    return res.status(503).json({ error: error.message || 'Tidak dapat terhubung ke layanan alamat' });
+    return res.status(503).json({ error: error.message || 'Tidak dapat terhubung ke layanan alamat', retryable: true });
   }
 };
