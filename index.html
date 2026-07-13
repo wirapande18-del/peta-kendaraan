@@ -33,6 +33,7 @@
         <button id="deleteAllBtn" class="danger">Hapus semua data</button>
         <button id="restoreDefaultBtn" class="secondary">Pulihkan data awal</button>
         <button id="showFailedBtn" class="warning">Lihat alamat gagal</button>
+        <button id="analyzeAddressBtn" class="success">Analisa & perbaiki Excel</button>
       </div>
       <small>Upload boleh berkali-kali. Nomor polisi yang sudah ada akan diabaikan; nomor polisi baru akan ditambahkan.</small>
     </section>
@@ -68,6 +69,19 @@
       </div>
       <small id="manualHelp"></small>
     </div>
+  </div>
+</div>
+
+<div id="analysisModal" class="modal hidden">
+  <div class="modal-box wide-modal">
+    <div class="modal-head"><h2>Analisa dan Perbaikan Alamat Excel</h2><button id="closeAnalysisBtn" class="icon-btn">×</button></div>
+    <div class="analysis-summary" id="analysisSummary"></div>
+    <div class="row wrap">
+      <button id="applyCleanedBtn">Terapkan alamat hasil perbaikan</button>
+      <button id="downloadCleanedBtn" class="success">Download Excel hasil perbaikan</button>
+    </div>
+    <small>Perbaikan dilakukan secara otomatis berdasarkan singkatan, ejaan umum, dan wilayah Bali. Alamat berstatus kuning atau merah tetap perlu diperiksa.</small>
+    <div class="table-scroll"><table class="analysis-table"><thead><tr><th>Plat</th><th>Alamat asli</th><th>Alamat hasil</th><th>Keyakinan</th><th>Status</th></tr></thead><tbody id="analysisRows"></tbody></table></div>
   </div>
 </div>
 <script src="app.js"></script>

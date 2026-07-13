@@ -49,3 +49,71 @@ $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat i
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
 $('searchInput').oninput=applyFilter;$('advisorFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';applyFilter();};
 hydrateCoordinates();buildAdvisorFilter();applyFilter();saveData();setTimeout(()=>map.invalidateSize(),200);window.addEventListener('resize',()=>map.invalidateSize());
+
+// ===== Analisa dan perbaikan alamat Excel =====
+let addressAnalysis=[];
+const BALI_CORRECTIONS={
+  'TEGALLANG':'TEGALLALANG','TEGALALANG':'TEGALLALANG','ABIANS MAL':'ABIANSEMAL','ABIANSMAL':'ABIANSEMAL',
+  'SUKOWATI':'SUKAWATI','BLAHBATUH':'BLAHBATUH','BLAH BATUH':'BLAHBATUH','TAMPAK SIRING':'TAMPAKSIRING',
+  'KINTAMANI':'KINTAMANI','KARANG ASEM':'KARANGASEM','KLUNGKUNG':'KLUNGKUNG','TABANAN':'TABANAN',
+  'JEMBRANA':'JEMBRANA','BULELENG':'BULELENG','BADUNG':'BADUNG','DENPASAR':'DENPASAR','GIANYAR':'GIANYAR','BANGLI':'BANGLI'
+};
+const BALI_HINTS={
+  'BATUBULAN':'Sukawati, Gianyar','CELUK':'Sukawati, Gianyar','GUWANG':'Sukawati, Gianyar','SINGAPADU':'Sukawati, Gianyar',
+  'UBUD':'Ubud, Gianyar','MAS':'Ubud, Gianyar','PENESTANAN':'Ubud, Gianyar','PAYANGAN':'Payangan, Gianyar',
+  'TEGALLALANG':'Tegallalang, Gianyar','TAMPAKSIRING':'Tampaksiring, Gianyar','BLAHBATUH':'Blahbatuh, Gianyar',
+  'GIANYAR':'Gianyar, Bali','DENPASAR':'Denpasar, Bali','MENGWI':'Mengwi, Badung','ABIANSEMAL':'Abiansemal, Badung',
+  'KUTA':'Kuta, Badung','SEMINYAK':'Kuta, Badung','CANGGU':'Kuta Utara, Badung','TABANAN':'Tabanan, Bali',
+  'NEGARA':'Jembrana, Bali','SINGARAJA':'Buleleng, Bali','AMLAPURA':'Karangasem, Bali','SEMARAPURA':'Klungkung, Bali',
+  'BANGLI':'Bangli, Bali','KINTAMANI':'Kintamani, Bangli'
+};
+function titleAddress(s){return String(s||'').toLowerCase().replace(/(^|[\s,])([a-z])/g,(m,p,c)=>p+c.toUpperCase());}
+function cleanAddressSmart(input){
+  const original=String(input||'').trim();
+  if(!original)return {cleaned:'',confidence:0,status:'Kosong',notes:'Alamat kosong'};
+  let s=normalizeAddress(original).replace(/\bNO\.?\s*(\d+)/g,'Nomor $1');
+  let corrections=0;
+  for(const [bad,good] of Object.entries(BALI_CORRECTIONS)){
+    const re=new RegExp('\\b'+bad.replace(/ /g,'\\s+')+'\\b','g');
+    if(re.test(s)){s=s.replace(re,good);corrections++;}
+  }
+  const hasBali=/\bBALI\b/.test(s), hasKab=/\b(DENPASAR|GIANYAR|BADUNG|TABANAN|JEMBRANA|BULELENG|BANGLI|KLUNGKUNG|KARANGASEM)\b/.test(s);
+  let hint='';
+  if(!hasKab){for(const [place,area] of Object.entries(BALI_HINTS)){if(new RegExp('\\b'+place+'\\b').test(s)){hint=area;break;}}}
+  if(hint&&!s.includes(hint.toUpperCase()))s+=', '+hint;
+  if(!hasBali)s+=', Bali';
+  if(!/\bINDONESIA\b/.test(s))s+=', Indonesia';
+  s=s.replace(/,\s*,+/g,',').replace(/\s+/g,' ').trim();
+  const words=original.split(/\s+/).filter(Boolean).length;
+  let confidence=55;
+  if(words>=3)confidence+=12;if(/JALAN|BANJAR|DESA|KELURAHAN/.test(s))confidence+=8;if(hasKab||hint)confidence+=15;if(corrections===0)confidence+=5;
+  confidence=Math.min(98,confidence);
+  let status=confidence>=85?'Baik':confidence>=65?'Perlu dicek':'Kurang lengkap';
+  return {cleaned:titleAddress(s),confidence,status,notes:corrections?`${corrections} ejaan diperbaiki`:hint?'Wilayah Bali ditambahkan':'Format dinormalisasi'};
+}
+function runAddressAnalysis(){
+  addressAnalysis=vehicles.map((v,i)=>{const r=cleanAddressSmart(v.ADDRESS);return {index:i,plate:v.POLICE_NO||'',original:v.ADDRESS||'',...r};});
+  renderAddressAnalysis();$('analysisModal').classList.remove('hidden');
+}
+function confidenceClass(n){return n>=85?'conf-green':n>=65?'conf-yellow':'conf-red';}
+function statusClass(s){return s==='Baik'?'status-ok':s==='Perlu dicek'?'status-check':'status-fail';}
+function renderAddressAnalysis(){
+  const good=addressAnalysis.filter(x=>x.confidence>=85).length,check=addressAnalysis.filter(x=>x.confidence>=65&&x.confidence<85).length,bad=addressAnalysis.filter(x=>x.confidence<65).length;
+  $('analysisSummary').innerHTML=`<div><strong>${addressAnalysis.length}</strong><span>Total alamat</span></div><div><strong>${good}</strong><span>Baik</span></div><div><strong>${check}</strong><span>Perlu dicek</span></div><div><strong>${bad}</strong><span>Kurang lengkap</span></div>`;
+  $('analysisRows').innerHTML=addressAnalysis.map((x,i)=>`<tr><td><b>${esc(x.plate||'-')}</b></td><td>${esc(x.original||'-')}</td><td><textarea class="address-edit" data-i="${i}">${esc(x.cleaned)}</textarea></td><td><span class="confidence-badge ${confidenceClass(x.confidence)}">${x.confidence}%</span></td><td class="${statusClass(x.status)}">${esc(x.status)}<br><small>${esc(x.notes)}</small></td></tr>`).join('');
+  document.querySelectorAll('.address-edit').forEach(el=>el.oninput=()=>{addressAnalysis[Number(el.dataset.i)].cleaned=el.value.trim();});
+}
+function applyCleanedAddresses(){
+  let changed=0;
+  addressAnalysis.forEach(x=>{const v=vehicles[x.index];if(!v)return;const cleaned=x.cleaned.trim();v.ORIGINAL_ADDRESS=v.ORIGINAL_ADDRESS||v.ADDRESS||'';v.CLEANED_ADDRESS=cleaned;v.ADDRESS_CONFIDENCE=x.confidence;v.ADDRESS_STATUS=x.status;if(cleaned&&cleaned!==v.ADDRESS){v.ADDRESS=cleaned;delete v.lat;delete v.lng;v.geocodeFailed=false;changed++;}});
+  saveData();applyFilter();$('status').textContent=`${changed} alamat diperbarui. Klik Proses alamat untuk mencari titiknya.`;alert(`${changed} alamat berhasil diterapkan ke data aplikasi.`);
+}
+function downloadCleanedExcel(){
+  const rows=addressAnalysis.map(x=>{const v=vehicles[x.index]||{};return {...v,ALAMAT_ASLI:x.original,ALAMAT_HASIL_PERBAIKAN:x.cleaned,KEYAKINAN_ALAMAT:x.confidence+'%',STATUS_ALAMAT:x.status,CATATAN_ALAMAT:x.notes};});
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Alamat Diperbaiki');XLSX.writeFile(wb,`alamat-kendaraan-diperbaiki-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+$('analyzeAddressBtn').onclick=runAddressAnalysis;
+$('closeAnalysisBtn').onclick=()=>$('analysisModal').classList.add('hidden');
+$('applyCleanedBtn').onclick=applyCleanedAddresses;
+$('downloadCleanedBtn').onclick=downloadCleanedExcel;
+$('analysisModal').onclick=e=>{if(e.target===$('analysisModal'))$('analysisModal').classList.add('hidden');};
