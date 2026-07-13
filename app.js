@@ -12,6 +12,8 @@ let vehicles=readJSON(DATA_KEY,null)||[...(window.DEFAULT_VEHICLES||[])];
 let filteredVehicles=[];
 let stopRequested=false;
 let markers=[];
+const ADVISOR_COLORS=['#1769e0','#d92d20','#16a34a','#9333ea','#f59e0b','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5','#0f766e','#7c2d12'];
+let advisorColorMap={};
 
 const map=L.map('map').setView([-8.4095,115.1889],9);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors',crossOrigin:true}).addTo(map);
@@ -27,8 +29,24 @@ function updateStats(){
 function buildAdvisorFilter(){
   const current=$('advisorFilter').value;
   const names=[...new Set(vehicles.map(v=>v.SERVICE_ADVISOR).filter(Boolean))].sort();
+  advisorColorMap=Object.fromEntries(names.map((name,i)=>[name,ADVISOR_COLORS[i%ADVISOR_COLORS.length]]));
   $('advisorFilter').innerHTML='<option value="">Semua Service Advisor</option>'+names.map(n=>`<option>${esc(n)}</option>`).join('');
   $('advisorFilter').value=names.includes(current)?current:'';
+  renderLegend(names);
+}
+function advisorColor(name){return advisorColorMap[name]||'#64748b';}
+function markerIcon(name){
+  const color=advisorColor(name);
+  return L.divIcon({
+    className:'advisor-marker-wrap',
+    html:`<div class="advisor-marker" style="--marker-color:${color}"><span></span></div>`,
+    iconSize:[34,44],iconAnchor:[17,43],popupAnchor:[0,-40]
+  });
+}
+function renderLegend(names){
+  const box=$('advisorLegend');
+  if(!box)return;
+  box.innerHTML=names.length?names.map(n=>`<div class="legend-item"><span class="legend-dot" style="background:${advisorColor(n)}"></span><span>${esc(n)}</span></div>`).join(''):'<small>Belum ada data Service Advisor.</small>';
 }
 function popupHtml(v){
   const phone=normalizePhone(v.TELEPHONE_CP);
@@ -40,12 +58,12 @@ function popupHtml(v){
 function renderMarkers(){
   markers.forEach(m=>map.removeLayer(m));markers=[];
   const bounds=[];
-  filteredVehicles.forEach(v=>{if(!Number.isFinite(v.lat)||!Number.isFinite(v.lng))return;const m=L.marker([v.lat,v.lng]).addTo(map).bindPopup(popupHtml(v));m.vehicle=v;markers.push(m);bounds.push([v.lat,v.lng]);});
+  filteredVehicles.forEach(v=>{if(!Number.isFinite(v.lat)||!Number.isFinite(v.lng))return;const m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).addTo(map).bindPopup(popupHtml(v));m.vehicle=v;markers.push(m);bounds.push([v.lat,v.lng]);});
   if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});
 }
 function renderList(){
   const list=$('vehicleList');
-  list.innerHTML=filteredVehicles.slice(0,400).map(v=>`<div class="vehicle-item" data-plate="${esc(normalizePlate(v.POLICE_NO))}"><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b><span>${esc(v.CUSTOMER||'-')}</span><span>${esc(v.ADDRESS||'-')}</span></div>`).join('')||'<small>Tidak ada data.</small>';
+  list.innerHTML=filteredVehicles.slice(0,400).map(v=>`<div class="vehicle-item" data-plate="${esc(normalizePlate(v.POLICE_NO))}"><div class="vehicle-title"><span class="legend-dot" style="background:${advisorColor(v.SERVICE_ADVISOR)}"></span><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b></div><span>${esc(v.CUSTOMER||'-')}</span><span>SA: ${esc(v.SERVICE_ADVISOR||'-')}</span><span>${esc(v.ADDRESS||'-')}</span></div>`).join('')||'<small>Tidak ada data.</small>';
   list.querySelectorAll('.vehicle-item').forEach(el=>el.onclick=()=>focusVehicle(el.dataset.plate));
 }
 function focusVehicle(key){
