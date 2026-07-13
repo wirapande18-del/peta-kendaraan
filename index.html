@@ -32,6 +32,7 @@
         <button id="stopBtn" class="secondary">Stop</button>
         <button id="deleteAllBtn" class="danger">Hapus semua data</button>
         <button id="restoreDefaultBtn" class="secondary">Pulihkan data awal</button>
+        <button id="showFailedBtn" class="warning">Lihat alamat gagal</button>
       </div>
       <small>Upload boleh berkali-kali. Nomor polisi yang sudah ada akan diabaikan; nomor polisi baru akan ditambahkan.</small>
     </section>
@@ -52,6 +53,23 @@
   </aside>
   <section class="map-wrap"><div id="map"></div></section>
 </main>
+<div id="addressModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Perbaiki alamat</h2><button id="closeModalBtn" class="icon-btn">×</button></div>
+    <div id="failedList" class="failed-list"></div>
+    <div id="editAddressBox" class="edit-address hidden">
+      <b id="editVehicleTitle"></b>
+      <label>Alamat yang diperbaiki</label>
+      <textarea id="editAddressInput" rows="3"></textarea>
+      <div class="row wrap">
+        <button id="retryAddressBtn">Cari ulang alamat</button>
+        <button id="manualPointBtn" class="secondary">Klik titik di peta</button>
+        <button id="cancelEditBtn" class="secondary">Batal</button>
+      </div>
+      <small id="manualHelp"></small>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
