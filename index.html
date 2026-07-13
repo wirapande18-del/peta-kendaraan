@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Peta Kendaraan Service</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="data.js"></script>
+</head>
+<body>
+<header>
+  <div><h1>Peta Kendaraan Service</h1><p>OpenStreetMap gratis—tanpa API key dan tanpa kartu kredit.</p></div>
+  <div class="status" id="status">Peta siap digunakan</div>
+</header>
+<main>
+  <aside class="panel">
+    <section class="card">
+      <h2>Data kendaraan</h2>
+      <div class="stats">
+        <div><strong id="totalData">0</strong><span>Total data</span></div>
+        <div><strong id="mappedData">0</strong><span>Sudah di peta</span></div>
+        <div><strong id="failedData">0</strong><span>Alamat gagal</span></div>
+      </div>
+      <label class="upload">Upload Excel / CSV / TSV
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" />
+      </label>
+      <div class="row wrap">
+        <button id="startGeocodeBtn">Proses alamat</button>
+        <button id="stopBtn" class="secondary">Stop</button>
+        <button id="deleteAllBtn" class="danger">Hapus semua data</button>
+        <button id="restoreDefaultBtn" class="secondary">Pulihkan data awal</button>
+      </div>
+      <small>Upload boleh berkali-kali. Nomor polisi yang sudah ada akan diabaikan; nomor polisi baru akan ditambahkan.</small>
+    </section>
+    <section class="card">
+      <h2>Cari dan filter</h2>
+      <input id="searchInput" placeholder="Cari plat, nama, model, alamat..." />
+      <select id="advisorFilter"><option value="">Semua Service Advisor</option></select>
+      <button id="showAllBtn" class="secondary full">Tampilkan semua</button>
+    </section>
+    <section class="card list-card">
+      <h2>Daftar kendaraan</h2>
+      <div id="vehicleList" class="vehicle-list"></div>
+    </section>
+  </aside>
+  <section class="map-wrap"><div id="map"></div></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
