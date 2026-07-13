@@ -22,7 +22,8 @@
       <div class="stats">
         <div><strong id="totalData">0</strong><span>Total data</span></div>
         <div><strong id="mappedData">0</strong><span>Sudah di peta</span></div>
-        <div><strong id="failedData">0</strong><span>Alamat gagal</span></div>
+        <div><strong id="pendingData">0</strong><span>Belum diproses</span></div>
+        <div><strong id="failedData">0</strong><span>Benar-benar gagal</span></div>
       </div>
       <label class="upload">Upload Excel / CSV / TSV
         <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" />
@@ -35,7 +36,7 @@
         <button id="showFailedBtn" class="warning">Lihat alamat gagal</button>
         <button id="analyzeAddressBtn" class="success">Analisa & perbaiki Excel</button>
       </div>
-      <small>Upload boleh berkali-kali. Nomor polisi yang sudah ada akan diabaikan; nomor polisi baru akan ditambahkan.</small>
+      <small>Setelah upload, angka “Belum diproses” adalah alamat yang belum dicari—bukan gagal. Klik Proses alamat; perbaikan alamat berjalan otomatis.</small>
     </section>
     <section class="card">
       <h2>Cari dan filter</h2>
