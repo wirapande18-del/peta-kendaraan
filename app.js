@@ -71,7 +71,38 @@ function updateSelectionUi(){
   if($('selectedCount'))$('selectedCount').textContent=`${selectedFollowUps.size} dipilih`;
   if($('filteredCount'))$('filteredCount').textContent=`${filteredVehicles.length} data`;
 }
-function waMessage(v){const name=v.CUSTOMER||'Bapak/Ibu',plate=v.POLICE_NO||'kendaraan Anda';return `Selamat pagi ${name}. Kami dari Agung Toyota ingin mengingatkan jadwal service berkala kendaraan ${plate}. Apakah kami dapat membantu membuatkan booking service?`}
+function waMessage(v){
+    const hour = new Date().getHours();
+
+    const greeting =
+        hour < 11 ? "Selamat pagi" :
+        hour < 15 ? "Selamat siang" :
+        hour < 18 ? "Selamat sore" :
+        "Selamat malam";
+
+    const name = v.CUSTOMER || "Bapak/Ibu";
+
+    const plate = v.POLICE_NO || "";
+
+    const model = v.MODEL || "";
+
+    const vehicle = [model, plate]
+        .filter(Boolean)
+        .join(" dengan nomor polisi ");
+
+    return `${greeting} Bapak/Ibu ${name}.
+
+Perkenalkan, kami dari Agung Toyota Gianyar.
+
+Berdasarkan data kami, kendaraan ${vehicle} sudah memasuki jadwal servis berkala.
+
+Apakah Bapak/Ibu berkenan jika kami membantu membuatkan jadwal booking servis sesuai waktu yang diinginkan?
+
+Terima kasih.
+
+Salam,
+Agung Toyota Gianyar`;
+}
 function markWaOpened(v){
   const key=followUpKey(v),old=followUps[key]||{},today=new Date().toISOString().slice(0,10);
   const rec={...old,plate:v.POLICE_NO||'',customer:v.CUSTOMER||'',model:v.MODEL||'',status:'TERKIRIM',date:today,reason:old.reason||'REMINDER_SERVICE',nextDate:old.nextDate||'',note:old.note||'WhatsApp dibuka dari antrean follow up.',updatedAt:new Date().toISOString()};
