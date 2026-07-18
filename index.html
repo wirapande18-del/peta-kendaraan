@@ -43,14 +43,38 @@
       <h2>Cari dan filter</h2>
       <input id="searchInput" placeholder="Cari plat, nama, model, alamat..." />
       <select id="advisorFilter"><option value="">Semua Service Advisor</option></select>
+      <select id="regencyFilter"><option value="">Semua Kabupaten/Kota</option></select>
+      <select id="districtFilter"><option value="">Semua Kecamatan</option></select>
+      <select id="followUpStatusFilter">
+        <option value="">Semua Status Follow Up</option>
+        <option value="BELUM">Belum Follow Up</option>
+        <option value="TERKIRIM">Sudah Terkirim</option>
+        <option value="BELUM_DIBACA">Belum Dibaca</option>
+        <option value="DIBACA">Sudah Dibaca</option>
+        <option value="DIBALAS">Sudah Dibalas</option>
+        <option value="NOMOR_TIDAK_AKTIF">Nomor Tidak Aktif</option>
+        <option value="TIDAK_ADA_WHATSAPP">Tidak Ada WhatsApp</option>
+        <option value="BOOKING">Booking</option>
+        <option value="FOLLOW_UP_ULANG">Follow Up Ulang</option>
+        <option value="SELESAI">Selesai</option>
+      </select>
       <button id="showAllBtn" class="secondary full">Tampilkan semua</button>
     </section>
     <section class="card legend-card">
       <h2>Warna Service Advisor</h2>
       <div id="advisorLegend" class="advisor-legend"></div>
     </section>
+    <section class="card follow-up-batch-card">
+      <div class="batch-head"><h2>Follow Up Wilayah</h2><span id="selectedCount">0 dipilih</span></div>
+      <div class="row wrap">
+        <button id="selectVisibleBtn" class="secondary">Pilih hasil filter</button>
+        <button id="clearSelectionBtn" class="secondary">Batal pilih</button>
+        <button id="startBatchWaBtn" class="success">Mulai WA Berurutan</button>
+      </div>
+      <small id="batchHelp">Filter kecamatan, pilih customer, lalu buka WhatsApp berurutan. Status hasil WA tetap dicatat manual agar aman.</small>
+    </section>
     <section class="card list-card">
-      <h2>Daftar kendaraan</h2>
+      <div class="batch-head"><h2>Daftar kendaraan</h2><span id="filteredCount">0 data</span></div>
       <div id="vehicleList" class="vehicle-list"></div>
     </section>
   </aside>
@@ -97,7 +121,13 @@
       <label>Status Follow Up
         <select id="followUpStatus">
           <option value="BELUM">Belum Follow Up</option>
-          <option value="SUDAH">Sudah Follow Up</option>
+          <option value="TERKIRIM">Sudah Terkirim</option>
+          <option value="BELUM_DIBACA">Belum Dibaca</option>
+          <option value="DIBACA">Sudah Dibaca</option>
+          <option value="DIBALAS">Sudah Dibalas</option>
+          <option value="NOMOR_TIDAK_AKTIF">Nomor Tidak Aktif</option>
+          <option value="TIDAK_ADA_WHATSAPP">Tidak Ada WhatsApp</option>
+          <option value="BOOKING">Booking</option>
           <option value="TIDAK_TERHUBUNG">Tidak Terhubung</option>
           <option value="FOLLOW_UP_ULANG">Follow Up Ulang</option>
           <option value="SELESAI">Selesai</option>
