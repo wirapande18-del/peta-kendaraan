@@ -81,6 +81,7 @@ function waMessage(v){
   const region=inferRegion(v);
   const vehicle=[model,plate].filter(Boolean).join(' dengan nomor polisi ');
   const vehicleText=vehicle||'kendaraan Bapak/Ibu';
+  const area = region.district && region.district !== 'Belum diketahui'? ` di wilayah ${region.district}`: '';
   return `${greeting} Bapak/Ibu ${name}.
 
 Kami dari Agung Toyota Gianyar ingin mengingatkan jadwal servis berkala untuk ${vehicleText}${area}.
