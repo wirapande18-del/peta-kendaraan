@@ -268,3 +268,20 @@ $('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=follow
   });
   refreshMap();
 })();
+
+// ===== V6.1: pastikan Leaflet menghitung ulang ukuran peta di HP =====
+(function ensureMobileMapVisible(){
+  const refresh=()=>{
+    const mapEl=document.getElementById('map');
+    if(!mapEl)return;
+    // Memaksa browser menyelesaikan layout sebelum Leaflet menghitung ukuran.
+    void mapEl.offsetHeight;
+    try{map.invalidateSize({pan:false,animate:false});}catch(_){}
+  };
+  [0,120,350,800,1500].forEach(ms=>setTimeout(refresh,ms));
+  window.addEventListener('load',()=>[50,250,700].forEach(ms=>setTimeout(refresh,ms)));
+  window.addEventListener('orientationchange',()=>[100,350,800].forEach(ms=>setTimeout(refresh,ms)));
+  window.addEventListener('pageshow',()=>setTimeout(refresh,150));
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,150);});
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(refresh,100));
+})();

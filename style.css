@@ -83,3 +83,42 @@
  .app-layout.left-collapsed .left-sidebar .action-grid{display:flex}.app-layout.left-collapsed .left-sidebar .action-grid button{width:auto;font-size:14px;padding:10px 11px}.app-layout.left-collapsed .left-sidebar .action-grid button:before{content:none}
  .app-layout.right-collapsed .right-sidebar .vehicle-list{display:flex}.app-layout.right-collapsed .right-sidebar #selectedCount,.app-layout.right-collapsed .right-sidebar #filteredCount{display:inline}.app-layout.right-collapsed .right-sidebar .follow-up-batch-card:after{display:none}
 }
+
+/* ===== V6.1 FIX: peta selalu tampil di HP ===== */
+@media (max-width:780px){
+  html,body{width:100%;height:100%;overflow:hidden}
+  .app-header{position:relative;z-index:1600;width:100%;height:68px;min-height:68px}
+  .app-layout,
+  .app-layout.left-collapsed,
+  .app-layout.right-collapsed,
+  .app-layout.left-collapsed.right-collapsed{
+    display:block;
+    position:relative;
+    width:100%;
+    height:calc(100vh - 68px);
+    height:calc(100dvh - 68px);
+    min-height:320px;
+    overflow:hidden;
+  }
+  .map-wrap{
+    position:absolute;
+    inset:0;
+    display:block;
+    width:100%;
+    height:100%;
+    min-width:0;
+    min-height:320px;
+    z-index:1;
+    background:#dde5ef;
+  }
+  #map{
+    position:absolute!important;
+    inset:0;
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    min-height:320px;
+    z-index:1;
+  }
+  .left-sidebar,.right-sidebar{height:calc(100vh - 68px);height:calc(100dvh - 68px)}
+}
