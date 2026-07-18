@@ -71,38 +71,7 @@ function updateSelectionUi(){
   if($('selectedCount'))$('selectedCount').textContent=`${selectedFollowUps.size} dipilih`;
   if($('filteredCount'))$('filteredCount').textContent=`${filteredVehicles.length} data`;
 }
-function waMessage(v){
-    const hour = new Date().getHours();
-
-    const greeting =
-        hour < 11 ? "Selamat pagi" :
-        hour < 15 ? "Selamat siang" :
-        hour < 18 ? "Selamat sore" :
-        "Selamat malam";
-
-    const name = v.CUSTOMER || "Bapak/Ibu";
-
-    const plate = v.POLICE_NO || "";
-
-    const model = v.MODEL || "";
-
-    const vehicle = [model, plate]
-        .filter(Boolean)
-        .join(" dengan nomor polisi ");
-
-    return `${greeting} Bapak/Ibu ${name}.
-
-Perkenalkan, kami dari Agung Toyota Gianyar.
-
-Berdasarkan data kami, kendaraan ${vehicle} sudah memasuki jadwal servis berkala.
-
-Apakah Bapak/Ibu berkenan jika kami membantu membuatkan jadwal booking servis sesuai waktu yang diinginkan?
-
-Terima kasih.
-
-Salam,
-Agung Toyota Gianyar`;
-}
+function waMessage(v){const name=v.CUSTOMER||'Bapak/Ibu',plate=v.POLICE_NO||'kendaraan Anda';return `Selamat pagi ${name}. Kami dari Agung Toyota ingin mengingatkan jadwal service berkala kendaraan ${plate}. Apakah kami dapat membantu membuatkan booking service?`}
 function markWaOpened(v){
   const key=followUpKey(v),old=followUps[key]||{},today=new Date().toISOString().slice(0,10);
   const rec={...old,plate:v.POLICE_NO||'',customer:v.CUSTOMER||'',model:v.MODEL||'',status:'TERKIRIM',date:today,reason:old.reason||'REMINDER_SERVICE',nextDate:old.nextDate||'',note:old.note||'WhatsApp dibuka dari antrean follow up.',updatedAt:new Date().toISOString()};
@@ -255,3 +224,47 @@ $('closeFollowUpBtn').onclick=closeFollowUp;$('cancelFollowUpBtn').onclick=close
 $('saveFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle),date=$('followUpDate').value,reason=$('followUpReason').value;if(!date)return alert('Tanggal follow up harus diisi.');if(!reason)return alert('Reason follow up harus dipilih.');const old=followUps[key]||{},record={plate:activeFollowUpVehicle.POLICE_NO||'',customer:activeFollowUpVehicle.CUSTOMER||'',model:activeFollowUpVehicle.MODEL||'',status:$('followUpStatus').value,date,reason,nextDate:$('followUpNextDate').value,note:$('followUpNote').value.trim(),updatedAt:new Date().toISOString()};record.history=[...(old.history||[]),{status:record.status,date:record.date,reason:record.reason,nextDate:record.nextDate,note:record.note,savedAt:record.updatedAt}];followUps[key]=record;saveFollowUps();closeFollowUp();applyFilter();alert('Data follow up berhasil disimpan.');};
 $('deleteFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle);if(!followUps[key])return alert('Belum ada data follow up.');if(!confirm('Hapus seluruh data follow up kendaraan ini?'))return;delete followUps[key];saveFollowUps();closeFollowUp();applyFilter();};
 $('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=followUps[followUpKey(v)]||{};const r=inferRegion(v);return {...v,KABUPATEN_TERDETEKSI:r.regency,KECAMATAN_TERDETEKSI:r.district,STATUS_FOLLOW_UP:followUpStatusLabel(f.status||'BELUM'),TANGGAL_FOLLOW_UP:f.date||'',REASON_FOLLOW_UP:followUpReasonLabel(f.reason),FOLLOW_UP_BERIKUTNYA:f.nextDate||'',CATATAN_FOLLOW_UP:f.note||''};});if(!rows.length)return alert('Belum ada data kendaraan.');const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Kendaraan Follow Up');XLSX.writeFile(wb,`data-kendaraan-follow-up-${new Date().toISOString().slice(0,10)}.xlsx`);};
+
+// ===== V6: Minimize / Maximize sidebar kiri dan kanan =====
+(function initCollapsibleLayout(){
+  const layout=document.getElementById('appLayout');
+  const leftBtn=document.getElementById('toggleLeftSidebar');
+  const rightBtn=document.getElementById('toggleRightSidebar');
+  if(!layout||!leftBtn||!rightBtn)return;
+  const LAYOUT_KEY='vehicleMapLayoutV6';
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}')||{};}catch(_){saved={};}
+  const mobile=()=>window.matchMedia('(max-width:780px)').matches;
+  const refreshMap=()=>setTimeout(()=>{try{map.invalidateSize();}catch(_){}},280);
+  const save=()=>{if(mobile())return;localStorage.setItem(LAYOUT_KEY,JSON.stringify({leftCollapsed:layout.classList.contains('left-collapsed'),rightCollapsed:layout.classList.contains('right-collapsed')}));};
+  if(!mobile()){
+    if(saved.leftCollapsed)layout.classList.add('left-collapsed');
+    if(saved.rightCollapsed)layout.classList.add('right-collapsed');
+  }
+  leftBtn.onclick=()=>{
+    if(mobile()){
+      layout.classList.toggle('left-mobile-open');
+      layout.classList.remove('right-mobile-open');
+    }else{
+      layout.classList.toggle('left-collapsed');save();
+    }
+    refreshMap();
+  };
+  rightBtn.onclick=()=>{
+    if(mobile()){
+      layout.classList.toggle('right-mobile-open');
+      layout.classList.remove('left-mobile-open');
+    }else{
+      layout.classList.toggle('right-collapsed');save();
+    }
+    refreshMap();
+  };
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){layout.classList.remove('left-mobile-open','right-mobile-open');refreshMap();}
+  });
+  window.addEventListener('resize',()=>{
+    if(!mobile())layout.classList.remove('left-mobile-open','right-mobile-open');
+    refreshMap();
+  });
+  refreshMap();
+})();

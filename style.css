@@ -38,3 +38,48 @@
 /* ===== Filter wilayah & follow up berurutan ===== */
 .batch-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.batch-head h2{margin:0}.batch-head span{font-size:12px;font-weight:700;color:#475467}.vehicle-item{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start}.vehicle-item .vehicle-check{width:18px;height:18px;margin:2px 0 0}.vehicle-content{min-width:0}.region-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.region-badge{display:inline-flex!important;width:auto!important;padding:3px 7px;border-radius:999px;font-size:10px!important;font-weight:700;background:#e0f2fe;color:#075985}.region-badge.regency{background:#ede9fe;color:#5b21b6}.region-badge.unknown{background:#f1f5f9;color:#475569}.status-badge{display:inline-flex!important;width:auto!important;padding:3px 7px;border-radius:999px;font-size:10px!important;font-weight:700}.status-BELUM{background:#fee2e2;color:#991b1b}.status-TERKIRIM,.status-SUDAH{background:#dbeafe;color:#1d4ed8}.status-BELUM_DIBACA{background:#fef3c7;color:#92400e}.status-DIBACA,.status-DIBALAS,.status-BOOKING,.status-SELESAI{background:#dcfce7;color:#166534}.status-NOMOR_TIDAK_AKTIF,.status-TIDAK_ADA_WHATSAPP,.status-TIDAK_TERHUBUNG{background:#f1f5f9;color:#475569}.status-FOLLOW_UP_ULANG{background:#ffedd5;color:#9a3412}.follow-up-batch-card{border-color:#c4b5fd;background:#faf8ff}.mini{padding:7px 9px;font-size:11px}.queue-progress{font-size:12px;font-weight:700;color:#5b21b6;margin-top:8px}
 .popup-actions button.wa{background:#1b9c54;border-color:#1b9c54;color:#fff}
+
+/* ===== V6 layout: sidebar kiri & kanan bisa minimize/maximize ===== */
+:root{--left-sidebar-width:390px;--right-sidebar-width:370px;--collapsed-width:72px}
+.app-header{height:76px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px}
+.header-left,.header-right{display:flex;align-items:center;gap:12px;min-width:0}.header-left h1{font-size:22px}.header-left p{font-size:13px}
+.layout-toggle{width:42px;height:42px;min-width:42px;padding:0;border-radius:11px;background:#fff;color:#27415f;border:1px solid #cbd5e1;font-size:20px;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.layout-toggle:hover{background:#f8fafc;filter:none}
+.app-layout{display:grid;grid-template-columns:var(--left-sidebar-width) minmax(0,1fr) var(--right-sidebar-width);height:calc(100vh - 76px);transition:grid-template-columns .25s ease}
+.left-sidebar,.right-sidebar{min-width:0;overflow:auto;transition:width .25s ease,padding .25s ease;background:#f2f5f9}
+.left-sidebar{border-right:1px solid #dfe5ee}.right-sidebar{border-left:1px solid #dfe5ee}
+.sidebar-title{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 12px;font-weight:800;color:#334155}.sidebar-mini-icon{display:none;font-size:21px}
+.app-layout.left-collapsed{grid-template-columns:var(--collapsed-width) minmax(0,1fr) var(--right-sidebar-width)}
+.app-layout.right-collapsed{grid-template-columns:var(--left-sidebar-width) minmax(0,1fr) var(--collapsed-width)}
+.app-layout.left-collapsed.right-collapsed{grid-template-columns:var(--collapsed-width) minmax(0,1fr) var(--collapsed-width)}
+.app-layout.left-collapsed .left-sidebar,.app-layout.right-collapsed .right-sidebar{padding:10px 8px;overflow:hidden}
+.app-layout.left-collapsed .left-sidebar .sidebar-title-text,.app-layout.right-collapsed .right-sidebar .sidebar-title-text{display:none}
+.app-layout.left-collapsed .left-sidebar .sidebar-mini-icon,.app-layout.right-collapsed .right-sidebar .sidebar-mini-icon{display:inline}
+.app-layout.left-collapsed .left-sidebar .card,.app-layout.right-collapsed .right-sidebar .card{padding:9px 7px;margin-bottom:8px;box-shadow:none}
+.app-layout.left-collapsed .left-sidebar .section-label,.app-layout.right-collapsed .right-sidebar .section-label{display:none!important}
+.app-layout.left-collapsed .left-sidebar h2,.app-layout.right-collapsed .right-sidebar h2{margin:0;text-align:center;font-size:0}
+.app-layout.left-collapsed .left-sidebar .section-icon,.app-layout.right-collapsed .right-sidebar .section-icon{font-size:20px;display:block}
+.app-layout.left-collapsed .left-sidebar .stats{grid-template-columns:1fr;gap:5px}
+.app-layout.left-collapsed .left-sidebar .stats div{padding:7px 2px}.app-layout.left-collapsed .left-sidebar .stats strong{font-size:15px}.app-layout.left-collapsed .left-sidebar .stats span{display:none}
+.app-layout.left-collapsed .left-sidebar .upload{padding:9px 4px;margin-top:7px}.app-layout.left-collapsed .left-sidebar .upload .sidebar-mini-icon{display:block}
+.app-layout.left-collapsed .left-sidebar .action-grid{display:grid;grid-template-columns:1fr;gap:6px}.app-layout.left-collapsed .left-sidebar .action-grid button{width:100%;min-height:34px;padding:6px 2px;font-size:0}.app-layout.left-collapsed .left-sidebar .action-grid button:before{font-size:15px}.app-layout.left-collapsed #startGeocodeBtn:before{content:'▶'}.app-layout.left-collapsed #stopBtn:before{content:'■'}.app-layout.left-collapsed #deleteAllBtn:before{content:'🗑'}.app-layout.left-collapsed #restoreDefaultBtn:before{content:'↺'}.app-layout.left-collapsed #showFailedBtn:before{content:'!'}.app-layout.left-collapsed #analyzeAddressBtn:before{content:'✓'}.app-layout.left-collapsed #downloadFollowUpBtn:before{content:'↓'}
+.app-layout.right-collapsed .right-sidebar .batch-head{justify-content:center}.app-layout.right-collapsed .right-sidebar #selectedCount,.app-layout.right-collapsed .right-sidebar #filteredCount{display:none}.app-layout.right-collapsed .right-sidebar .vehicle-list{display:none}
+.app-layout.right-collapsed .right-sidebar .follow-up-batch-card:after{content:'WA';display:block;text-align:center;font-size:11px;font-weight:800;color:#7b1fa2;margin-top:4px}
+.map-wrap{min-width:0}.app-layout .map-wrap,#map{height:100%}
+@media(max-width:1100px){:root{--left-sidebar-width:330px;--right-sidebar-width:320px}}
+@media(max-width:780px){
+ .app-header{height:68px;padding:9px 10px}.header-left h1{font-size:17px}.header-left p{display:none}.header-right .status{display:none}
+ .app-layout{display:grid;height:calc(100vh - 68px);grid-template-columns:0 minmax(0,1fr) 0}
+ .left-sidebar,.right-sidebar{position:fixed;top:68px;bottom:0;z-index:1500;width:min(88vw,370px);box-shadow:0 12px 35px rgba(15,23,42,.25);background:#f2f5f9}
+ .left-sidebar{left:0;transform:translateX(-105%)}.right-sidebar{right:0;transform:translateX(105%)}
+ .app-layout.left-mobile-open .left-sidebar{transform:translateX(0)}.app-layout.right-mobile-open .right-sidebar{transform:translateX(0)}
+ .left-sidebar,.right-sidebar{transition:transform .25s ease}
+ .app-layout.left-collapsed,.app-layout.right-collapsed,.app-layout.left-collapsed.right-collapsed{grid-template-columns:0 minmax(0,1fr) 0}
+ .app-layout.left-collapsed .left-sidebar,.app-layout.right-collapsed .right-sidebar{padding:14px;overflow:auto}
+ .app-layout.left-collapsed .left-sidebar .section-label,.app-layout.right-collapsed .right-sidebar .section-label{display:initial!important}
+ .app-layout.left-collapsed .left-sidebar .sidebar-title-text,.app-layout.right-collapsed .right-sidebar .sidebar-title-text{display:inline}
+ .app-layout.left-collapsed .left-sidebar .sidebar-mini-icon,.app-layout.right-collapsed .right-sidebar .sidebar-mini-icon{display:none}
+ .app-layout.left-collapsed .left-sidebar .stats{grid-template-columns:repeat(2,1fr)}.app-layout.left-collapsed .left-sidebar .stats span{display:block}
+ .app-layout.left-collapsed .left-sidebar .action-grid{display:flex}.app-layout.left-collapsed .left-sidebar .action-grid button{width:auto;font-size:14px;padding:10px 11px}.app-layout.left-collapsed .left-sidebar .action-grid button:before{content:none}
+ .app-layout.right-collapsed .right-sidebar .vehicle-list{display:flex}.app-layout.right-collapsed .right-sidebar #selectedCount,.app-layout.right-collapsed .right-sidebar #filteredCount{display:inline}.app-layout.right-collapsed .right-sidebar .follow-up-batch-card:after{display:none}
+}
