@@ -84,7 +84,7 @@ function waMessage(v){
   const area=region.district&&region.district!=='Belum diketahui'?` di wilayah ${region.district}`:'';
   return `${greeting} Bapak/Ibu ${name}.
 
-Kami dari Agung Toyota ingin mengingatkan jadwal servis berkala untuk ${vehicleText}${area}.
+Kami dari Agung Toyota Gianyar ingin mengingatkan jadwal servis berkala untuk ${vehicleText}${area}.
 
 Apakah kami dapat membantu membuatkan booking servis sesuai waktu yang Bapak/Ibu inginkan?
 
