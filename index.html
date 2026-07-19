@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Peta Kendaraan Service</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
-  <link rel="stylesheet" href="style.css?v=7.1-mobile-fix" />
+  <link rel="stylesheet" href="style.css?v=10-ai-offline" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
-  <script src="data.js?v=7.1-mobile-fix"></script>
+  <script src="data.js?v=10-ai-offline"></script>
 </head>
 <body>
 <header class="app-header">
@@ -195,14 +195,14 @@
         <label>Nama Template<input id="templateNameInput" placeholder="Contoh: Reminder Service 6 Bulan"></label>
         <label>Kategori<select id="templateCategoryInput"><option value="REMINDER">Reminder Service</option><option value="PROMO">Promo</option><option value="BOOKING">Booking</option><option value="FOLLOW_UP">Follow Up</option><option value="BODY_PAINT">Body & Paint</option><option value="UCAPAN">Ucapan</option><option value="LAINNYA">Lainnya</option></select></label>
         <div class="ai-writer-box">
-          <div class="ai-writer-head"><div><b>✨ AI Pembuat Pesan</b><small>Buat atau rapikan kata-kata reminder dan promo secara otomatis.</small></div><span id="aiStatusBadge" class="ai-status">Siap</span></div>
-          <label>Perintah untuk AI<textarea id="aiPromptInput" rows="3" placeholder="Contoh: Buat promo ganti oli yang sopan, singkat, dan mengajak customer booking service."></textarea></label>
+          <div class="ai-writer-head"><div><b>✨ AI Offline Gratis</b><small>Membuat dan merapikan pesan langsung di perangkat, tanpa API key dan tanpa biaya.</small></div><span id="aiStatusBadge" class="ai-status">Siap</span></div>
+          <label>Topik atau perintah<textarea id="aiPromptInput" rows="3" placeholder="Contoh: Promo ganti oli bulan ini, diskon 15%, ajak customer booking service."></textarea></label>
           <div class="ai-options">
             <label>Gaya bahasa<select id="aiToneInput"><option value="sopan-profesional">Sopan & profesional</option><option value="ramah">Ramah</option><option value="singkat">Singkat</option><option value="persuasif">Persuasif</option><option value="formal">Formal</option></select></label>
             <label>Panjang pesan<select id="aiLengthInput"><option value="pendek">Pendek</option><option value="sedang" selected>Sedang</option><option value="panjang">Panjang</option></select></label>
           </div>
-          <div class="row wrap"><button id="generateAiMessageBtn" class="ai-button" type="button">✨ Buat dengan AI</button><button id="improveAiMessageBtn" class="secondary" type="button">🪄 Rapikan Pesan Ini</button></div>
-          <small class="ai-note">AI mempertahankan variabel seperti {nama}, {plat}, {model}, dan {dealer}. Hasil tetap bisa diedit sebelum disimpan.</small>
+          <div class="row wrap"><button id="generateAiMessageBtn" class="ai-button" type="button">✨ Buat Pesan Offline</button><button id="improveAiMessageBtn" class="secondary" type="button">🪄 Rapikan Pesan Ini</button></div>
+          <small class="ai-note">Tidak membutuhkan internet, API key, atau pembayaran. Variabel {nama}, {plat}, {model}, dan {dealer} tetap dipertahankan. Klik lagi untuk mendapatkan variasi lain.</small>
         </div>
         <label>Isi Pesan<textarea id="templateMessageInput" rows="12" placeholder="Tulis pesan WhatsApp..."></textarea></label>
         <div class="template-token-help"><b>Klik variabel untuk memasukkan ke pesan:</b> <button type="button" data-token="{nama}">{nama}</button> <button type="button" data-token="{plat}">{plat}</button> <button type="button" data-token="{model}">{model}</button> <button type="button" data-token="{tahun}">{tahun}</button> <button type="button" data-token="{km}">{km}</button> <button type="button" data-token="{sa}">{sa}</button> <button type="button" data-token="{alamat}">{alamat}</button> <button type="button" data-token="{telepon}">{telepon}</button> <button type="button" data-token="{no_rangka}">{no_rangka}</button> <button type="button" data-token="{service_terakhir}">{service_terakhir}</button> <button type="button" data-token="{jatuh_tempo}">{jatuh_tempo}</button> <button type="button" data-token="{repair_type}">{repair_type}</button> <button type="button" data-token="{kabupaten}">{kabupaten}</button> <button type="button" data-token="{kecamatan}">{kecamatan}</button> <button type="button" data-token="{dealer}">{dealer}</button> <button type="button" data-token="{tanggal}">{tanggal}</button></div>
@@ -225,6 +225,6 @@
   </div>
 </div>
 
-<script src="app.js?v=9-ai-writer"></script>
+<script src="app.js?v=10-ai-offline"></script>
 </body>
 </html>

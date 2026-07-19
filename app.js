@@ -292,28 +292,111 @@ $('deleteTemplateBtn').onclick=()=>{const t=waTemplates.find(x=>x.id===editingTe
 $('restoreTemplateBackupBtn').onclick=()=>{const backup=readJSON(WA_TEMPLATE_BACKUP_KEY,null);if(!backup?.length)return alert('Belum ada backup template. Backup dibuat setiap kali template disimpan atau diubah.');if(!confirm('Kembalikan template ke kondisi sebelum perubahan terakhir?'))return;const current=waTemplates;waTemplates=backup;safeStore(WA_TEMPLATE_BACKUP_KEY,current);saveWaTemplates(false);editingTemplateId=waTemplates[0]?.id||'';refreshTemplateSelectors();loadTemplateEditor(editingTemplateId);alert('Backup template berhasil dipulihkan.');};
 $('resetTemplatesBtn').onclick=()=>{if(!confirm('Pulihkan template bawaan? Template buatan Anda akan diganti.'))return;waTemplates=DEFAULT_WA_TEMPLATES.map(x=>({...x}));activeWaTemplateId=waTemplates[0].id;editingTemplateId=activeWaTemplateId;saveWaTemplates();refreshTemplateSelectors();loadTemplateEditor(editingTemplateId);};
 
-// ===== V9: AI pembuat dan perapih pesan WhatsApp =====
+// ===== V10: AI Offline Gratis pembuat dan perapih pesan WhatsApp =====
+let offlineAiVariation=0;
 function setAiWriterState(state,text){
   const badge=$('aiStatusBadge'),buttons=[$('generateAiMessageBtn'),$('improveAiMessageBtn')].filter(Boolean);
-  if(badge){badge.className='ai-status '+(state||'');badge.textContent=text||'Siap';}
+  if(badge){badge.className='ai-status '+(state||'');badge.textContent=text||'Siap Offline';}
   buttons.forEach(btn=>btn.disabled=state==='loading');
 }
-async function requestAiMessage(task){
+function capitalizeSentence(text){
+  return String(text||'').trim().replace(/\s+/g,' ').replace(/^./,c=>c.toUpperCase());
+}
+function extractPromoDetail(prompt){
+  const p=String(prompt||'').trim();
+  const discount=(p.match(/(?:diskon|potongan)\s*([0-9]{1,2}\s*%)/i)||[])[1];
+  const price=(p.match(/(?:rp\.?\s*)?[0-9][0-9.,]{3,}/i)||[])[0];
+  return {discount,price};
+}
+function detectOfflineTopic(prompt,category){
+  const p=String(prompt||'').toLowerCase();
+  if(/oli|oil/.test(p))return 'ganti oli dan pemeriksaan kendaraan';
+  if(/ac|air conditioner|dingin/.test(p))return 'pemeriksaan dan perawatan AC';
+  if(/rem|brake|kampas/.test(p))return 'pemeriksaan sistem pengereman';
+  if(/aki|battery|baterai/.test(p))return 'pemeriksaan kondisi aki';
+  if(/ban|spooring|balancing/.test(p))return 'pemeriksaan ban, spooring, dan balancing';
+  if(/body|paint|coating|cat/.test(p))return 'perawatan Body & Paint';
+  if(/t-care|tcare/.test(p))return 'pemanfaatan layanan T-Care';
+  if(/booking/.test(p))return 'booking service';
+  if(category==='REMINDER')return 'service berkala';
+  if(category==='BOOKING')return 'booking service';
+  if(category==='BODY_PAINT')return 'perawatan Body & Paint';
+  return 'service dan perawatan kendaraan';
+}
+function greetingByTone(tone,variant){
+  if(tone==='formal')return variant%2?'Dengan hormat, Bapak/Ibu {nama}.':'Yth. Bapak/Ibu {nama},';
+  if(tone==='ramah')return variant%2?'Halo Bapak/Ibu {nama} 👋':'Selamat pagi Bapak/Ibu {nama}.';
+  if(tone==='singkat')return 'Halo Bapak/Ibu {nama}.';
+  return variant%2?'Selamat pagi Bapak/Ibu {nama}.':'Om Swastyastu Bapak/Ibu {nama}.';
+}
+function closingByTone(tone,variant){
+  if(tone==='persuasif')return variant%2?'Kuota layanan terbatas. Silakan balas pesan ini agar kami bantu jadwalkan booking Anda.':'Yuk booking sekarang agar kendaraan tetap nyaman dan terawat. Kami siap membantu.';
+  if(tone==='singkat')return 'Silakan balas pesan ini untuk booking. Terima kasih.';
+  if(tone==='formal')return 'Mohon menghubungi kami untuk pengaturan jadwal kunjungan. Terima kasih atas kepercayaan Anda.';
+  return variant%2?'Silakan balas pesan ini, kami siap membantu proses booking. Terima kasih.':'Kami dengan senang hati membantu menentukan jadwal service yang nyaman. Terima kasih.';
+}
+function buildOfflineMessage({prompt,category,tone,length,variant}){
+  const topic=detectOfflineTopic(prompt,category),detail=extractPromoDetail(prompt),greeting=greetingByTone(tone,variant);
+  const vehicle='Kendaraan {model} dengan nomor polisi {plat}';
+  let body='';
+  if(category==='PROMO'){
+    const benefit=detail.discount?`tersedia promo diskon ${detail.discount}`:detail.price?`tersedia penawaran spesial ${detail.price}`:'tersedia promo spesial';
+    const variants=[
+      `${benefit} untuk ${topic}.`,
+      `Saat ini {dealer} menghadirkan ${benefit} untuk ${topic}.`,
+      `Kami ingin menginformasikan bahwa ${benefit} yang dapat dimanfaatkan untuk ${vehicle}.`
+    ];
+    body=variants[variant%variants.length];
+  }else if(category==='BOOKING'){
+    body=`Kami siap membantu proses booking ${topic} untuk ${vehicle}.`;
+  }else if(category==='FOLLOW_UP'){
+    body=`Kami menindaklanjuti informasi sebelumnya mengenai ${topic} untuk ${vehicle}.`;
+  }else if(category==='BODY_PAINT'){
+    body=`Kami menyediakan ${topic} untuk membantu menjaga tampilan dan perlindungan ${vehicle}.`;
+  }else if(category==='UCAPAN'){
+    body=`Semoga Bapak/Ibu {nama} selalu sehat dan aktivitasnya berjalan lancar bersama ${vehicle}.`;
+  }else{
+    const variants=[
+      `${vehicle} sudah memasuki waktu yang disarankan untuk ${topic}.`,
+      `Kami ingin mengingatkan jadwal ${topic} untuk ${vehicle}.`,
+      `Agar performa dan kenyamanan tetap terjaga, ${vehicle} disarankan melakukan ${topic}.`
+    ];
+    body=variants[variant%variants.length];
+  }
+  const extra=capitalizeSentence(prompt);
+  let parts=[greeting,'',body];
+  if(length==='panjang')parts.push('',`Perawatan tepat waktu membantu menjaga keamanan, kenyamanan, serta kondisi kendaraan. Service terakhir: {service_terakhir}. Jadwal berikutnya: {jatuh_tempo}.`);
+  if(length!=='pendek' && extra && !/^buat|^bikin|^rapikan/i.test(extra))parts.push('',`Informasi: ${extra.replace(/[.]$/,'')}.`);
+  parts.push('',closingByTone(tone,variant),'','{dealer}');
+  return parts.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function improveOfflineMessage(message,tone,length){
+  let text=String(message||'').replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+  text=text.split('\n').map(line=>line.trim()).join('\n');
+  if(!/[.!?}]$/.test(text))text+='.';
+  if(!/\{nama\}/i.test(text))text=`${greetingByTone(tone,offlineAiVariation)}\n\n${text}`;
+  if(!/booking|balas pesan|hubungi/i.test(text))text+=`\n\n${closingByTone(tone,offlineAiVariation)}`;
+  if(!/\{dealer\}/i.test(text))text+='\n\n{dealer}';
+  if(length==='pendek'){
+    const paras=text.split(/\n\n+/).filter(Boolean);
+    text=paras.slice(0,4).join('\n\n');
+  }
+  return text;
+}
+function requestAiMessage(task){
   const prompt=$('aiPromptInput')?.value.trim()||'',currentMessage=$('templateMessageInput')?.value.trim()||'';
-  if(task==='generate'&&!prompt)return alert('Tulis dulu perintah untuk AI. Contoh: Buat promo ganti oli yang singkat dan sopan.');
-  if(task==='improve'&&!currentMessage)return alert('Isi pesan masih kosong. Tulis pesan terlebih dahulu atau gunakan tombol Buat dengan AI.');
-  setAiWriterState('loading','AI sedang menulis...');
+  if(task==='generate'&&!prompt)return alert('Tulis topik terlebih dahulu. Contoh: Promo ganti oli diskon 15% dan ajak booking.');
+  if(task==='improve'&&!currentMessage)return alert('Isi pesan masih kosong. Tulis pesan terlebih dahulu atau gunakan tombol Buat Pesan Offline.');
+  setAiWriterState('loading','Memproses offline...');
   try{
-    const response=await fetch('/api/ai-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,prompt,currentMessage,category:$('templateCategoryInput')?.value||'LAINNYA',tone:$('aiToneInput')?.value||'sopan-profesional',length:$('aiLengthInput')?.value||'sedang'})});
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||`AI gagal (${response.status})`);
-    if(!data.message)throw new Error('AI tidak menghasilkan pesan.');
-    $('templateMessageInput').value=data.message;updateTemplatePreview();setAiWriterState('success','Berhasil');
-  }catch(err){setAiWriterState('error','Belum aktif / gagal');alert(err.message||'AI gagal membuat pesan.');}
+    offlineAiVariation++;
+    const tone=$('aiToneInput')?.value||'sopan-profesional',length=$('aiLengthInput')?.value||'sedang';
+    const message=task==='generate'?buildOfflineMessage({prompt,category:$('templateCategoryInput')?.value||'LAINNYA',tone,length,variant:offlineAiVariation}):improveOfflineMessage(currentMessage,tone,length);
+    $('templateMessageInput').value=message;updateTemplatePreview();setAiWriterState('success','Gratis · Offline');
+  }catch(err){setAiWriterState('error','Gagal');alert(err.message||'Pesan gagal dibuat.');}
 }
 if($('generateAiMessageBtn'))$('generateAiMessageBtn').onclick=()=>requestAiMessage('generate');
 if($('improveAiMessageBtn'))$('improveAiMessageBtn').onclick=()=>requestAiMessage('improve');
-
 $('templateMessageInput').oninput=updateTemplatePreview;
 document.querySelectorAll('.template-token-help button').forEach(btn=>btn.onclick=()=>{const input=$('templateMessageInput'),token=btn.dataset.token,start=input.selectionStart??input.value.length,end=input.selectionEnd??start;input.value=input.value.slice(0,start)+token+input.value.slice(end);input.focus();input.selectionStart=input.selectionEnd=start+token.length;updateTemplatePreview();});
 $('testTemplateWaBtn').onclick=()=>{const raw=$('testWaNumberInput').value.trim(),phone=normalizePhone(raw);if(phone.length<10)return alert('Masukkan nomor WA tes yang benar.');localStorage.setItem(WA_TEST_NUMBER_KEY,raw);const msg=renderTemplateMessage($('templateMessageInput').value,vehicles[0]||{});window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');};
