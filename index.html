@@ -184,6 +184,7 @@
     <div class="template-layout">
       <aside class="template-list-panel">
         <div class="row wrap"><button id="newTemplateBtn" class="success" type="button">+ Template Baru</button><button id="duplicateTemplateBtn" class="secondary" type="button">Duplikat</button></div>
+        <input id="templateSearchInput" class="template-search" placeholder="Cari nama atau kategori template...">
         <div id="templateList" class="template-list"></div>
         <div class="row wrap template-file-actions">
           <label class="upload compact-upload">Import Excel/CSV<input id="templateFileInput" type="file" accept=".xlsx,.xls,.csv" /></label>
@@ -192,12 +193,23 @@
       </aside>
       <section class="template-editor">
         <label>Nama Template<input id="templateNameInput" placeholder="Contoh: Reminder Service 6 Bulan"></label>
-        <label>Kategori<select id="templateCategoryInput"><option value="REMINDER">Reminder Service</option><option value="PROMO">Promo</option><option value="UCAPAN">Ucapan</option><option value="LAINNYA">Lainnya</option></select></label>
+        <label>Kategori<select id="templateCategoryInput"><option value="REMINDER">Reminder Service</option><option value="PROMO">Promo</option><option value="BOOKING">Booking</option><option value="FOLLOW_UP">Follow Up</option><option value="BODY_PAINT">Body & Paint</option><option value="UCAPAN">Ucapan</option><option value="LAINNYA">Lainnya</option></select></label>
+        <div class="ai-writer-box">
+          <div class="ai-writer-head"><div><b>✨ AI Pembuat Pesan</b><small>Buat atau rapikan kata-kata reminder dan promo secara otomatis.</small></div><span id="aiStatusBadge" class="ai-status">Siap</span></div>
+          <label>Perintah untuk AI<textarea id="aiPromptInput" rows="3" placeholder="Contoh: Buat promo ganti oli yang sopan, singkat, dan mengajak customer booking service."></textarea></label>
+          <div class="ai-options">
+            <label>Gaya bahasa<select id="aiToneInput"><option value="sopan-profesional">Sopan & profesional</option><option value="ramah">Ramah</option><option value="singkat">Singkat</option><option value="persuasif">Persuasif</option><option value="formal">Formal</option></select></label>
+            <label>Panjang pesan<select id="aiLengthInput"><option value="pendek">Pendek</option><option value="sedang" selected>Sedang</option><option value="panjang">Panjang</option></select></label>
+          </div>
+          <div class="row wrap"><button id="generateAiMessageBtn" class="ai-button" type="button">✨ Buat dengan AI</button><button id="improveAiMessageBtn" class="secondary" type="button">🪄 Rapikan Pesan Ini</button></div>
+          <small class="ai-note">AI mempertahankan variabel seperti {nama}, {plat}, {model}, dan {dealer}. Hasil tetap bisa diedit sebelum disimpan.</small>
+        </div>
         <label>Isi Pesan<textarea id="templateMessageInput" rows="12" placeholder="Tulis pesan WhatsApp..."></textarea></label>
-        <div class="template-token-help"><b>Variabel otomatis:</b> <button type="button" data-token="{nama}">{nama}</button> <button type="button" data-token="{plat}">{plat}</button> <button type="button" data-token="{model}">{model}</button> <button type="button" data-token="{tahun}">{tahun}</button> <button type="button" data-token="{km}">{km}</button> <button type="button" data-token="{sa}">{sa}</button> <button type="button" data-token="{alamat}">{alamat}</button> <button type="button" data-token="{tanggal}">{tanggal}</button></div>
+        <div class="template-token-help"><b>Klik variabel untuk memasukkan ke pesan:</b> <button type="button" data-token="{nama}">{nama}</button> <button type="button" data-token="{plat}">{plat}</button> <button type="button" data-token="{model}">{model}</button> <button type="button" data-token="{tahun}">{tahun}</button> <button type="button" data-token="{km}">{km}</button> <button type="button" data-token="{sa}">{sa}</button> <button type="button" data-token="{alamat}">{alamat}</button> <button type="button" data-token="{telepon}">{telepon}</button> <button type="button" data-token="{no_rangka}">{no_rangka}</button> <button type="button" data-token="{service_terakhir}">{service_terakhir}</button> <button type="button" data-token="{jatuh_tempo}">{jatuh_tempo}</button> <button type="button" data-token="{repair_type}">{repair_type}</button> <button type="button" data-token="{kabupaten}">{kabupaten}</button> <button type="button" data-token="{kecamatan}">{kecamatan}</button> <button type="button" data-token="{dealer}">{dealer}</button> <button type="button" data-token="{tanggal}">{tanggal}</button></div>
         <label class="inline-check"><input id="templateActiveInput" type="checkbox" checked> Template aktif</label>
-        <div class="template-preview"><b>Contoh hasil pesan</b><div id="templatePreview"></div></div>
-        <div class="row wrap"><button id="saveTemplateBtn" class="success" type="button">Simpan Template</button><button id="deleteTemplateBtn" class="danger" type="button">Hapus</button><button id="resetTemplatesBtn" class="secondary" type="button">Pulihkan Template Bawaan</button></div>
+        <div class="template-preview"><b>Preview hasil pesan</b><div id="templatePreview"></div></div>
+        <div class="test-wa-box"><label>Nomor WA untuk tes<input id="testWaNumberInput" inputmode="numeric" placeholder="Contoh: 081234567890"></label><button id="testTemplateWaBtn" class="secondary" type="button">📲 Test ke WA Saya</button></div>
+        <div class="row wrap"><button id="saveTemplateBtn" class="success" type="button">💾 Simpan Template</button><button id="deleteTemplateBtn" class="danger" type="button">🗑 Hapus</button><button id="restoreTemplateBackupBtn" class="secondary" type="button">↩ Restore Backup</button><button id="resetTemplatesBtn" class="secondary" type="button">Pulihkan Template Bawaan</button></div>
       </section>
     </div>
   </div>
@@ -213,6 +225,6 @@
   </div>
 </div>
 
-<script src="app.js?v=7.1-mobile-fix"></script>
+<script src="app.js?v=9-ai-writer"></script>
 </body>
 </html>

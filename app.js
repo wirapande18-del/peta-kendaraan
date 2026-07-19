@@ -3,6 +3,8 @@ const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
 const WA_TEMPLATE_KEY='vehicleMapWaTemplatesV1';
 const WA_ACTIVE_TEMPLATE_KEY='vehicleMapActiveWaTemplateV1';
+const WA_TEMPLATE_BACKUP_KEY='vehicleMapWaTemplatesBackupV1';
+const WA_TEST_NUMBER_KEY='vehicleMapWaTestNumberV1';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const normalizePlate=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -83,12 +85,12 @@ const DEFAULT_WA_TEMPLATES=[
 let waTemplates=readJSON(WA_TEMPLATE_KEY,null)||DEFAULT_WA_TEMPLATES.map(x=>({...x}));
 let activeWaTemplateId=localStorage.getItem(WA_ACTIVE_TEMPLATE_KEY)||waTemplates[0]?.id||'';
 let editingTemplateId='',waComposerVehicle=null,waComposerBatchMode=false;
-const saveWaTemplates=()=>safeStore(WA_TEMPLATE_KEY,waTemplates);
+const saveWaTemplates=(withBackup=true)=>{if(withBackup){const old=readJSON(WA_TEMPLATE_KEY,null);if(old)safeStore(WA_TEMPLATE_BACKUP_KEY,old);}return safeStore(WA_TEMPLATE_KEY,waTemplates);};
 function makeTemplateId(){return 'tpl-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);}
 function activeWaTemplates(){return waTemplates.filter(x=>x.active!==false);}
 function getActiveWaTemplate(){return waTemplates.find(x=>x.id===activeWaTemplateId&&x.active!==false)||activeWaTemplates()[0]||waTemplates[0];}
-function templateValues(v){return {nama:v?.CUSTOMER||'Bapak/Ibu',plat:v?.POLICE_NO||'kendaraan Anda',model:v?.MODEL||'kendaraan',tahun:v?.YEAR||v?.TAHUN||v?.VIN||'-',km:v?.KM||'-',sa:v?.SERVICE_ADVISOR||'-',alamat:v?.ADDRESS||'-',tanggal:new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})};}
-function renderTemplateMessage(message,v){const values=templateValues(v);return String(message||'').replace(/\{(nama|plat|model|tahun|km|sa|alamat|tanggal)\}/gi,(m,k)=>values[k.toLowerCase()]??m);}
+function templateValues(v){const region=inferRegion(v||{});return {nama:v?.CUSTOMER||'Bapak/Ibu',plat:v?.POLICE_NO||'kendaraan Anda',model:v?.MODEL||'kendaraan',tahun:v?.YEAR||v?.TAHUN||'-',km:v?.KM||v?.ODOMETER||'-',sa:v?.SERVICE_ADVISOR||v?.SA||'-',alamat:v?.ADDRESS||'-',telepon:v?.PHONE||v?.WA_CP||v?.MOBILE_PHONE||'-',no_rangka:v?.VIN||v?.CHASSIS_NO||v?.NO_RANGKA||'-',service_terakhir:v?.REPAIR_DATE||v?.LAST_SERVICE_DATE||'-',jatuh_tempo:v?.DUE_DATE||v?.NEXT_SERVICE_DATE||'-',repair_type:v?.REPAIR_TYPE||v?.JOB||'-',kabupaten:region.regency||'-',kecamatan:region.district||'-',dealer:'Agung Toyota',tanggal:new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})};}
+function renderTemplateMessage(message,v){const values=templateValues(v);return String(message||'').replace(/\{(nama|plat|model|tahun|km|sa|alamat|telepon|no_rangka|service_terakhir|jatuh_tempo|repair_type|kabupaten|kecamatan|dealer|tanggal)\}/gi,(m,k)=>values[k.toLowerCase()]??m);}
 function waMessage(v,templateId=activeWaTemplateId){const t=waTemplates.find(x=>x.id===templateId)||getActiveWaTemplate();return renderTemplateMessage(t?.message||DEFAULT_WA_TEMPLATES[0].message,v);}
 function refreshTemplateSelectors(){
   const active=activeWaTemplates();if(!active.some(x=>x.id===activeWaTemplateId)&&active[0])activeWaTemplateId=active[0].id;
@@ -265,10 +267,12 @@ $('deleteFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=f
 $('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=followUps[followUpKey(v)]||{};const r=inferRegion(v);return {...v,KABUPATEN_TERDETEKSI:r.regency,KECAMATAN_TERDETEKSI:r.district,STATUS_FOLLOW_UP:followUpStatusLabel(f.status||'BELUM'),TANGGAL_FOLLOW_UP:f.date||'',REASON_FOLLOW_UP:followUpReasonLabel(f.reason),FOLLOW_UP_BERIKUTNYA:f.nextDate||'',CATATAN_FOLLOW_UP:f.note||''};});if(!rows.length)return alert('Belum ada data kendaraan.');const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Kendaraan Follow Up');XLSX.writeFile(wb,`data-kendaraan-follow-up-${new Date().toISOString().slice(0,10)}.xlsx`);};
 
 
-// ===== V7: Template WhatsApp editable, tersimpan lokal, import/export =====
+// ===== V8: Template WhatsApp editable, pencarian, preview, test WA, backup =====
+function categoryLabel(c){return ({REMINDER:'Reminder Service',PROMO:'Promo',BOOKING:'Booking',FOLLOW_UP:'Follow Up',BODY_PAINT:'Body & Paint',UCAPAN:'Ucapan',LAINNYA:'Lainnya'}[c]||c||'Lainnya');}
 function renderTemplateList(){
-  const box=$('templateList');if(!box)return;
-  box.innerHTML=waTemplates.length?waTemplates.map(t=>`<button type="button" class="template-list-item ${t.id===editingTemplateId?'selected':''}" data-id="${esc(t.id)}"><b>${esc(t.name)}</b><small>${esc(t.category||'LAINNYA')} · ${t.active!==false?'Aktif':'Nonaktif'}</small></button>`).join(''):'<small>Belum ada template.</small>';
+  const box=$('templateList'),q=String($('templateSearchInput')?.value||'').trim().toLowerCase();
+  const list=waTemplates.filter(t=>!q||`${t.name} ${t.category} ${categoryLabel(t.category)}`.toLowerCase().includes(q));
+  box.innerHTML=list.length?list.map(t=>`<button type="button" class="template-list-item category-${esc(t.category||'LAINNYA')} ${t.id===editingTemplateId?'selected':''}" data-id="${esc(t.id)}"><b>${esc(t.name)}</b><small>${esc(categoryLabel(t.category))} · ${t.active!==false?'Aktif':'Nonaktif'}</small></button>`).join(''):'<small>Tidak ada template yang cocok.</small>';
   box.querySelectorAll('.template-list-item').forEach(el=>el.onclick=()=>loadTemplateEditor(el.dataset.id));
 }
 function loadTemplateEditor(id){
@@ -276,17 +280,43 @@ function loadTemplateEditor(id){
   $('templateNameInput').value=t.name||'';$('templateCategoryInput').value=t.category||'LAINNYA';$('templateMessageInput').value=t.message||'';$('templateActiveInput').checked=t.active!==false;renderTemplateList();updateTemplatePreview();
 }
 function updateTemplatePreview(){if($('templatePreview'))$('templatePreview').textContent=renderTemplateMessage($('templateMessageInput').value,vehicles[0]||{});}
-function openTemplateManager(){refreshTemplateSelectors();renderTemplateList();if(!editingTemplateId||!waTemplates.some(x=>x.id===editingTemplateId))editingTemplateId=waTemplates[0]?.id||'';if(editingTemplateId)loadTemplateEditor(editingTemplateId);$('templateModal').classList.remove('hidden');}
+function openTemplateManager(){refreshTemplateSelectors();renderTemplateList();if(!editingTemplateId||!waTemplates.some(x=>x.id===editingTemplateId))editingTemplateId=waTemplates[0]?.id||'';if(editingTemplateId)loadTemplateEditor(editingTemplateId);$('testWaNumberInput').value=localStorage.getItem(WA_TEST_NUMBER_KEY)||'';$('templateModal').classList.remove('hidden');}
 function closeTemplateManager(){$('templateModal').classList.add('hidden');}
 $('manageTemplatesBtn').onclick=openTemplateManager;$('closeTemplateBtn').onclick=closeTemplateManager;$('templateModal').onclick=e=>{if(e.target===$('templateModal'))closeTemplateManager();};
+$('templateSearchInput').oninput=renderTemplateList;
 $('quickTemplateSelect').onchange=e=>{activeWaTemplateId=e.target.value;localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId);refreshTemplateSelectors();};
 $('newTemplateBtn').onclick=()=>{const t={id:makeTemplateId(),name:'Template Baru',category:'LAINNYA',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\n'};waTemplates.push(t);saveWaTemplates();loadTemplateEditor(t.id);refreshTemplateSelectors();};
 $('duplicateTemplateBtn').onclick=()=>{const src=waTemplates.find(x=>x.id===editingTemplateId);if(!src)return alert('Pilih template yang akan diduplikat.');const t={...src,id:makeTemplateId(),name:(src.name||'Template')+' - Salinan'};waTemplates.push(t);saveWaTemplates();loadTemplateEditor(t.id);refreshTemplateSelectors();};
-$('saveTemplateBtn').onclick=()=>{const name=$('templateNameInput').value.trim(),message=$('templateMessageInput').value.trim();if(!name)return alert('Nama template harus diisi.');if(!message)return alert('Isi pesan harus diisi.');let t=waTemplates.find(x=>x.id===editingTemplateId);if(!t){t={id:makeTemplateId()};waTemplates.push(t);editingTemplateId=t.id;}Object.assign(t,{name,category:$('templateCategoryInput').value,message,active:$('templateActiveInput').checked});saveWaTemplates();refreshTemplateSelectors();renderTemplateList();alert('Template berhasil disimpan.');};
+$('saveTemplateBtn').onclick=()=>{const name=$('templateNameInput').value.trim(),message=$('templateMessageInput').value.trim();if(!name)return alert('Nama template harus diisi.');if(!message)return alert('Isi pesan harus diisi.');let t=waTemplates.find(x=>x.id===editingTemplateId);if(!t){t={id:makeTemplateId()};waTemplates.push(t);editingTemplateId=t.id;}Object.assign(t,{name,category:$('templateCategoryInput').value,message,active:$('templateActiveInput').checked});saveWaTemplates();refreshTemplateSelectors();renderTemplateList();alert('Template berhasil disimpan dan backup sebelumnya dibuat.');};
 $('deleteTemplateBtn').onclick=()=>{const t=waTemplates.find(x=>x.id===editingTemplateId);if(!t)return;if(waTemplates.length<=1)return alert('Minimal harus ada satu template.');if(!confirm(`Hapus template “${t.name}”?`))return;waTemplates=waTemplates.filter(x=>x.id!==editingTemplateId);editingTemplateId=waTemplates[0]?.id||'';saveWaTemplates();refreshTemplateSelectors();if(editingTemplateId)loadTemplateEditor(editingTemplateId);};
+$('restoreTemplateBackupBtn').onclick=()=>{const backup=readJSON(WA_TEMPLATE_BACKUP_KEY,null);if(!backup?.length)return alert('Belum ada backup template. Backup dibuat setiap kali template disimpan atau diubah.');if(!confirm('Kembalikan template ke kondisi sebelum perubahan terakhir?'))return;const current=waTemplates;waTemplates=backup;safeStore(WA_TEMPLATE_BACKUP_KEY,current);saveWaTemplates(false);editingTemplateId=waTemplates[0]?.id||'';refreshTemplateSelectors();loadTemplateEditor(editingTemplateId);alert('Backup template berhasil dipulihkan.');};
 $('resetTemplatesBtn').onclick=()=>{if(!confirm('Pulihkan template bawaan? Template buatan Anda akan diganti.'))return;waTemplates=DEFAULT_WA_TEMPLATES.map(x=>({...x}));activeWaTemplateId=waTemplates[0].id;editingTemplateId=activeWaTemplateId;saveWaTemplates();refreshTemplateSelectors();loadTemplateEditor(editingTemplateId);};
+
+// ===== V9: AI pembuat dan perapih pesan WhatsApp =====
+function setAiWriterState(state,text){
+  const badge=$('aiStatusBadge'),buttons=[$('generateAiMessageBtn'),$('improveAiMessageBtn')].filter(Boolean);
+  if(badge){badge.className='ai-status '+(state||'');badge.textContent=text||'Siap';}
+  buttons.forEach(btn=>btn.disabled=state==='loading');
+}
+async function requestAiMessage(task){
+  const prompt=$('aiPromptInput')?.value.trim()||'',currentMessage=$('templateMessageInput')?.value.trim()||'';
+  if(task==='generate'&&!prompt)return alert('Tulis dulu perintah untuk AI. Contoh: Buat promo ganti oli yang singkat dan sopan.');
+  if(task==='improve'&&!currentMessage)return alert('Isi pesan masih kosong. Tulis pesan terlebih dahulu atau gunakan tombol Buat dengan AI.');
+  setAiWriterState('loading','AI sedang menulis...');
+  try{
+    const response=await fetch('/api/ai-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,prompt,currentMessage,category:$('templateCategoryInput')?.value||'LAINNYA',tone:$('aiToneInput')?.value||'sopan-profesional',length:$('aiLengthInput')?.value||'sedang'})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||`AI gagal (${response.status})`);
+    if(!data.message)throw new Error('AI tidak menghasilkan pesan.');
+    $('templateMessageInput').value=data.message;updateTemplatePreview();setAiWriterState('success','Berhasil');
+  }catch(err){setAiWriterState('error','Belum aktif / gagal');alert(err.message||'AI gagal membuat pesan.');}
+}
+if($('generateAiMessageBtn'))$('generateAiMessageBtn').onclick=()=>requestAiMessage('generate');
+if($('improveAiMessageBtn'))$('improveAiMessageBtn').onclick=()=>requestAiMessage('improve');
+
 $('templateMessageInput').oninput=updateTemplatePreview;
 document.querySelectorAll('.template-token-help button').forEach(btn=>btn.onclick=()=>{const input=$('templateMessageInput'),token=btn.dataset.token,start=input.selectionStart??input.value.length,end=input.selectionEnd??start;input.value=input.value.slice(0,start)+token+input.value.slice(end);input.focus();input.selectionStart=input.selectionEnd=start+token.length;updateTemplatePreview();});
+$('testTemplateWaBtn').onclick=()=>{const raw=$('testWaNumberInput').value.trim(),phone=normalizePhone(raw);if(phone.length<10)return alert('Masukkan nomor WA tes yang benar.');localStorage.setItem(WA_TEST_NUMBER_KEY,raw);const msg=renderTemplateMessage($('templateMessageInput').value,vehicles[0]||{});window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');};
 $('exportTemplatesBtn').onclick=()=>{const rows=waTemplates.map(t=>({NAMA_TEMPLATE:t.name,KATEGORI:t.category,ISI_PESAN:t.message,AKTIF:t.active!==false?'YA':'TIDAK'}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Template WA');XLSX.writeFile(wb,`template-whatsapp-${new Date().toISOString().slice(0,10)}.xlsx`);};
 $('templateFileInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{defval:''});let added=0;rows.forEach(r=>{const name=String(r.NAMA_TEMPLATE||r['Nama Template']||r.NAMA||'').trim(),message=String(r.ISI_PESAN||r['Isi Pesan']||r.PESAN||'').trim();if(!name||!message)return;waTemplates.push({id:makeTemplateId(),name,category:String(r.KATEGORI||'LAINNYA').toUpperCase(),message,active:!/^TIDAK|NO|FALSE|0$/i.test(String(r.AKTIF||'YA'))});added++;});saveWaTemplates();refreshTemplateSelectors();renderTemplateList();alert(`${added} template berhasil diimport.`);}catch(err){alert('Template gagal diimport: '+err.message);}finally{e.target.value='';}};
 $('waComposerTemplate').onchange=e=>{activeWaTemplateId=e.target.value;localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId);$('waComposerMessage').value=waMessage(waComposerVehicle,activeWaTemplateId);refreshTemplateSelectors();};
