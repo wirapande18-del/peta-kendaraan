@@ -395,6 +395,61 @@ function requestAiMessage(task){
     $('templateMessageInput').value=message;updateTemplatePreview();setAiWriterState('success','Gratis · Offline');
   }catch(err){setAiWriterState('error','Gagal');alert(err.message||'Pesan gagal dibuat.');}
 }
+
+// ===== V11: Smart AI Offline - analisa kendaraan dan rekomendasi service =====
+function parseSmartVehiclePrompt(prompt){
+  const t=String(prompt||'').toLowerCase();
+  const year=(t.match(/\b(19|20)\d{2}\b/)||[])[0]||'';
+  let km=0;
+  const kmMatch=t.match(/(\d{1,3}(?:[.,]\d{3})+|\d{4,6})\s*(?:km|kilometer)?/);
+  if(kmMatch)km=parseInt(kmMatch[1].replace(/[.,]/g,''),10)||0;
+  const late=(t.match(/(?:telat|terlambat|belum service)\s*(?:selama)?\s*(\d+)\s*bulan/)||[])[1];
+  const models=['avanza','veloz','rush','fortuner','innova','zenix','agya','calya','raize','yaris','alphard','camry','hilux','hiace','sienta','corolla','vios'];
+  const model=models.find(m=>t.includes(m))||'';
+  return {year,km,lateMonths:late?Number(late):0,model:model?model.charAt(0).toUpperCase()+model.slice(1):'{model}',text:t};
+}
+function smartServiceRecommendations(info){
+  const rec=[];
+  const add=x=>{if(!rec.includes(x))rec.push(x)};
+  add('Ganti oli mesin dan filter oli');
+  if(info.km>=20000)add('Periksa/ganti filter udara dan filter AC');
+  if(info.km>=40000){add('Brake service dan pemeriksaan kampas rem');add('Rotasi ban, spooring, dan balancing');}
+  if(info.km>=60000){add('Periksa coolant dan sistem pendingin');add('Periksa oli transmisi sesuai tipe kendaraan');}
+  if(info.km>=80000){add('Periksa busi atau sistem pembakaran');add('Periksa suspensi dan kaki-kaki');}
+  if(info.km>=100000){add('Periksa oli gardan/differential bila tersedia');add('Pemeriksaan menyeluruh kebocoran dan mounting');}
+  const age=info.year?new Date().getFullYear()-Number(info.year):0;
+  if(age>=3)add('Tes kondisi aki dan sistem pengisian');
+  if(age>=5)add('Periksa kinerja AC dan kebocoran refrigerant');
+  if(info.lateMonths>=6)add('Lakukan general check karena jadwal service sudah terlambat');
+  return rec.slice(0,7);
+}
+function buildSmartFollowUpMessage(info,recs,tone,length){
+  const late=info.lateMonths?` sudah terlambat sekitar ${info.lateMonths} bulan dari jadwal service`:'';
+  const kmText=info.km?` dengan kilometer sekitar ${info.km.toLocaleString('id-ID')} km`:'';
+  const top=recs.slice(0,length==='pendek'?2:length==='panjang'?5:3).map(x=>x.toLowerCase()).join(', ');
+  let msg=`${greetingByTone(tone,offlineAiVariation)}\n\nKendaraan ${info.model} dengan nomor polisi {plat}${kmText}${late}. Kami menyarankan ${top} agar kondisi kendaraan tetap aman dan nyaman digunakan.`;
+  if(length==='panjang')msg+=`\n\nService terakhir tercatat pada {service_terakhir}, dengan perkiraan jadwal berikutnya {jatuh_tempo}. Rekomendasi akhir tetap menyesuaikan hasil pemeriksaan teknisi di bengkel.`;
+  msg+=`\n\n${closingByTone(tone,offlineAiVariation)}\n\n{dealer}`;
+  return msg;
+}
+function runSmartServiceAnalysis(){
+  const prompt=$('aiPromptInput')?.value.trim()||'';
+  if(!prompt)return alert('Tulis data kendaraan. Contoh: Rush 2021 80.000 km, terlambat 8 bulan.');
+  const info=parseSmartVehiclePrompt(prompt),recs=smartServiceRecommendations(info);
+  const box=$('smartAiResult');
+  if(box){
+    box.classList.remove('hidden');
+    box.innerHTML=`<h4>🔧 Rekomendasi untuk ${escapeHtml(info.model)} ${escapeHtml(info.year||'')}</h4><div>${info.km?`Kilometer: <b>${info.km.toLocaleString('id-ID')} km</b>`:'Kilometer belum disebutkan.'}${info.lateMonths?` · Terlambat: <b>${info.lateMonths} bulan</b>`:''}</div><ul>${recs.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="smart-tags"><span class="smart-tag">Offline</span><span class="smart-tag">Tanpa API</span><span class="smart-tag">Bisa diedit</span></div><button id="useSmartMessageBtn" type="button" class="ai-button">Gunakan sebagai Pesan WA</button>`;
+    $('useSmartMessageBtn').onclick=()=>{
+      offlineAiVariation++;
+      const msg=buildSmartFollowUpMessage(info,recs,$('aiToneInput')?.value||'sopan-profesional',$('aiLengthInput')?.value||'sedang');
+      $('templateMessageInput').value=msg;updateTemplatePreview();setAiWriterState('success','Smart AI Offline');
+    };
+  }
+  setAiWriterState('success','Analisa selesai');
+}
+if($('smartServiceBtn'))$('smartServiceBtn').onclick=runSmartServiceAnalysis;
+
 if($('generateAiMessageBtn'))$('generateAiMessageBtn').onclick=()=>requestAiMessage('generate');
 if($('improveAiMessageBtn'))$('improveAiMessageBtn').onclick=()=>requestAiMessage('improve');
 $('templateMessageInput').oninput=updateTemplatePreview;
