@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Peta Kendaraan Service</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
-  <link rel="stylesheet" href="style.css?v=10-ai-offline" />
+  <link rel="stylesheet" href="style.css?v=12-smart-excel" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
-  <script src="data.js?v=10-ai-offline"></script>
+  <script src="data.js?v=12-smart-excel"></script>
 </head>
 <body>
 <header class="app-header">
@@ -45,6 +45,7 @@
         <button id="downloadFollowUpBtn" class="follow-up-download" title="Download Follow Up"><span>Download Follow Up</span></button>
       </div>
       <small class="section-label">Setelah upload, angka “Belum diproses” adalah alamat yang belum dicari—bukan gagal.</small>
+      <small class="section-label"><b>Format fleksibel:</b> urutan kolom bebas, data kurang tetap masuk, kolom tambahan diabaikan, dan upload berikutnya otomatis melengkapi NO RANGKA serta LAST SERVICE.</small>
     </section>
     <section class="card">
       <h2><span class="section-icon">🔎</span><span class="section-label">Cari dan filter</span></h2>
@@ -226,6 +227,6 @@
   </div>
 </div>
 
-<script src="app.js?v=11-smart-ai-offline"></script>
+<script src="app.js?v=12-smart-excel-offline"></script>
 </body>
 </html>
