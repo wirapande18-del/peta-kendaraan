@@ -1,6 +1,8 @@
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
+const WA_TEMPLATE_KEY='vehicleMapWaTemplatesV1';
+const WA_ACTIVE_TEMPLATE_KEY='vehicleMapActiveWaTemplateV1';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const normalizePlate=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -71,52 +73,49 @@ function updateSelectionUi(){
   if($('selectedCount'))$('selectedCount').textContent=`${selectedFollowUps.size} dipilih`;
   if($('filteredCount'))$('filteredCount').textContent=`${filteredVehicles.length} data`;
 }
-function waMessage(v){
-    const hour = new Date().getHours();
-
-    const greeting =
-        hour < 11 ? "Selamat pagi" :
-        hour < 15 ? "Selamat siang" :
-        hour < 18 ? "Selamat sore" :
-        "Selamat malam";
-
-    const name = v.CUSTOMER || "Bapak/Ibu";
-
-    const plate = v.POLICE_NO || "";
-
-    const model = v.MODEL || "";
-
-    const vehicle = [model, plate]
-        .filter(Boolean)
-        .join(" dengan nomor polisi ");
-
-    return `${greeting} Bapak/Ibu ${name}.
-
-Perkenalkan, kami dari Agung Toyota Gianyar.
-
-Berdasarkan data kami, kendaraan ${vehicle} sudah memasuki jadwal servis berkala.
-
-Apakah Bapak/Ibu berkenan jika kami membantu membuatkan jadwal booking servis sesuai waktu yang diinginkan?
-
-Terima kasih.
-
-Salam,
-Agung Toyota Gianyar`;
+const DEFAULT_WA_TEMPLATES=[
+  {id:'reminder-service',name:'Reminder Service Berkala',category:'REMINDER',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\nKami dari Agung Toyota ingin mengingatkan bahwa kendaraan {model} dengan nomor polisi {plat} sudah waktunya melakukan service berkala.\n\nApakah kami dapat membantu membuatkan booking service?\n\nTerima kasih.'},
+  {id:'promo-service',name:'Promo Service',category:'PROMO',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\nSaat ini tersedia promo service untuk kendaraan {model} nomor polisi {plat}. Silakan balas pesan ini untuk mendapatkan informasi promo dan jadwal booking.\n\nTerima kasih.'},
+  {id:'promo-oli',name:'Promo Ganti Oli',category:'PROMO',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\nAda promo ganti oli untuk kendaraan {model} dengan nomor polisi {plat}. Kami siap membantu pengecekan dan booking service.\n\nTerima kasih.'},
+  {id:'follow-up-booking',name:'Follow Up Booking',category:'REMINDER',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\nKami ingin menindaklanjuti kebutuhan service kendaraan {model} nomor polisi {plat}. Kapan waktu yang paling nyaman untuk melakukan booking service?\n\nTerima kasih.'}
+];
+let waTemplates=readJSON(WA_TEMPLATE_KEY,null)||DEFAULT_WA_TEMPLATES.map(x=>({...x}));
+let activeWaTemplateId=localStorage.getItem(WA_ACTIVE_TEMPLATE_KEY)||waTemplates[0]?.id||'';
+let editingTemplateId='',waComposerVehicle=null,waComposerBatchMode=false;
+const saveWaTemplates=()=>localStorage.setItem(WA_TEMPLATE_KEY,JSON.stringify(waTemplates));
+function makeTemplateId(){return 'tpl-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);}
+function activeWaTemplates(){return waTemplates.filter(x=>x.active!==false);}
+function getActiveWaTemplate(){return waTemplates.find(x=>x.id===activeWaTemplateId&&x.active!==false)||activeWaTemplates()[0]||waTemplates[0];}
+function templateValues(v){return {nama:v?.CUSTOMER||'Bapak/Ibu',plat:v?.POLICE_NO||'kendaraan Anda',model:v?.MODEL||'kendaraan',tahun:v?.YEAR||v?.TAHUN||v?.VIN||'-',km:v?.KM||'-',sa:v?.SERVICE_ADVISOR||'-',alamat:v?.ADDRESS||'-',tanggal:new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})};}
+function renderTemplateMessage(message,v){const values=templateValues(v);return String(message||'').replace(/\{(nama|plat|model|tahun|km|sa|alamat|tanggal)\}/gi,(m,k)=>values[k.toLowerCase()]??m);}
+function waMessage(v,templateId=activeWaTemplateId){const t=waTemplates.find(x=>x.id===templateId)||getActiveWaTemplate();return renderTemplateMessage(t?.message||DEFAULT_WA_TEMPLATES[0].message,v);}
+function refreshTemplateSelectors(){
+  const active=activeWaTemplates();if(!active.some(x=>x.id===activeWaTemplateId)&&active[0])activeWaTemplateId=active[0].id;
+  localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId||'');
+  const options=active.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  if($('quickTemplateSelect')){$('quickTemplateSelect').innerHTML=options||'<option>Belum ada template aktif</option>';$('quickTemplateSelect').value=activeWaTemplateId;}
+  if($('waComposerTemplate')){$('waComposerTemplate').innerHTML=options;$('waComposerTemplate').value=activeWaTemplateId;}
+  if($('activeTemplateBadge'))$('activeTemplateBadge').textContent=getActiveWaTemplate()?.name||'Belum ada';
 }
+function openWaComposer(v,batchMode=false){
+  if(!activeWaTemplates().length)return alert('Belum ada template aktif. Aktifkan atau buat template terlebih dahulu.');
+  waComposerVehicle=v;waComposerBatchMode=batchMode;refreshTemplateSelectors();
+  $('waComposerVehicle').textContent=`${v.POLICE_NO||'-'} · ${v.MODEL||'-'} · ${v.CUSTOMER||'-'}`;
+  $('waComposerMessage').value=waMessage(v,$('waComposerTemplate').value);$('waComposerModal').classList.remove('hidden');
+}
+function closeWaComposer(){waComposerVehicle=null;waComposerBatchMode=false;$('waComposerModal').classList.add('hidden');}
+
 function markWaOpened(v){
   const key=followUpKey(v),old=followUps[key]||{},today=new Date().toISOString().slice(0,10);
   const rec={...old,plate:v.POLICE_NO||'',customer:v.CUSTOMER||'',model:v.MODEL||'',status:'TERKIRIM',date:today,reason:old.reason||'REMINDER_SERVICE',nextDate:old.nextDate||'',note:old.note||'WhatsApp dibuka dari antrean follow up.',updatedAt:new Date().toISOString()};
   rec.history=[...(old.history||[]),{status:'TERKIRIM',date:today,reason:rec.reason,nextDate:rec.nextDate,note:'WhatsApp dibuka dari antrean follow up.',savedAt:rec.updatedAt}];
   followUps[key]=rec;saveFollowUps();
 }
-window.openSingleWa=key=>{const v=vehicles.find(x=>followUpKey(x)===key);if(!v)return alert('Data kendaraan tidak ditemukan.');const phone=normalizePhone(v.TELEPHONE_CP);if(!phone)return alert('Nomor WhatsApp belum tersedia.');markWaOpened(v);window.open(`https://wa.me/${phone}?text=${encodeURIComponent(waMessage(v))}`,'_blank','noopener');applyFilter();};
+window.openSingleWa=key=>{const v=vehicles.find(x=>followUpKey(x)===key);if(!v)return alert('Data kendaraan tidak ditemukan.');const phone=normalizePhone(v.TELEPHONE_CP);if(!phone)return alert('Nomor WhatsApp belum tersedia.');openWaComposer(v,false);};
 function openNextBatchWa(){
   while(batchIndex<batchQueue.length&&!normalizePhone(batchQueue[batchIndex].TELEPHONE_CP))batchIndex++;
   if(batchIndex>=batchQueue.length){$('status').textContent='Antrean WhatsApp selesai. Silakan perbarui status berdasarkan hasil chat.';batchQueue=[];batchIndex=0;applyFilter();return;}
-  const v=batchQueue[batchIndex++],phone=normalizePhone(v.TELEPHONE_CP);markWaOpened(v);
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(waMessage(v))}`,'_blank','noopener');
-  $('status').textContent=`WA ${batchIndex}/${batchQueue.length}: ${v.POLICE_NO||'-'} dibuka. Klik “Mulai WA Berurutan” lagi untuk customer berikutnya.`;
-  applyFilter();
+  const v=batchQueue[batchIndex++];openWaComposer(v,true);
 }
 
 const ADVISOR_COLORS=['#1769e0','#d92d20','#16a34a','#9333ea','#f59e0b','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5','#0f766e','#7c2d12'];
@@ -256,6 +255,36 @@ $('saveFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=fol
 $('deleteFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle);if(!followUps[key])return alert('Belum ada data follow up.');if(!confirm('Hapus seluruh data follow up kendaraan ini?'))return;delete followUps[key];saveFollowUps();closeFollowUp();applyFilter();};
 $('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=followUps[followUpKey(v)]||{};const r=inferRegion(v);return {...v,KABUPATEN_TERDETEKSI:r.regency,KECAMATAN_TERDETEKSI:r.district,STATUS_FOLLOW_UP:followUpStatusLabel(f.status||'BELUM'),TANGGAL_FOLLOW_UP:f.date||'',REASON_FOLLOW_UP:followUpReasonLabel(f.reason),FOLLOW_UP_BERIKUTNYA:f.nextDate||'',CATATAN_FOLLOW_UP:f.note||''};});if(!rows.length)return alert('Belum ada data kendaraan.');const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Kendaraan Follow Up');XLSX.writeFile(wb,`data-kendaraan-follow-up-${new Date().toISOString().slice(0,10)}.xlsx`);};
 
+
+// ===== V7: Template WhatsApp editable, tersimpan lokal, import/export =====
+function renderTemplateList(){
+  const box=$('templateList');if(!box)return;
+  box.innerHTML=waTemplates.length?waTemplates.map(t=>`<button type="button" class="template-list-item ${t.id===editingTemplateId?'selected':''}" data-id="${esc(t.id)}"><b>${esc(t.name)}</b><small>${esc(t.category||'LAINNYA')} · ${t.active!==false?'Aktif':'Nonaktif'}</small></button>`).join(''):'<small>Belum ada template.</small>';
+  box.querySelectorAll('.template-list-item').forEach(el=>el.onclick=()=>loadTemplateEditor(el.dataset.id));
+}
+function loadTemplateEditor(id){
+  const t=waTemplates.find(x=>x.id===id);if(!t)return;editingTemplateId=id;
+  $('templateNameInput').value=t.name||'';$('templateCategoryInput').value=t.category||'LAINNYA';$('templateMessageInput').value=t.message||'';$('templateActiveInput').checked=t.active!==false;renderTemplateList();updateTemplatePreview();
+}
+function updateTemplatePreview(){if($('templatePreview'))$('templatePreview').textContent=renderTemplateMessage($('templateMessageInput').value,vehicles[0]||{});}
+function openTemplateManager(){refreshTemplateSelectors();renderTemplateList();if(!editingTemplateId||!waTemplates.some(x=>x.id===editingTemplateId))editingTemplateId=waTemplates[0]?.id||'';if(editingTemplateId)loadTemplateEditor(editingTemplateId);$('templateModal').classList.remove('hidden');}
+function closeTemplateManager(){$('templateModal').classList.add('hidden');}
+$('manageTemplatesBtn').onclick=openTemplateManager;$('closeTemplateBtn').onclick=closeTemplateManager;$('templateModal').onclick=e=>{if(e.target===$('templateModal'))closeTemplateManager();};
+$('quickTemplateSelect').onchange=e=>{activeWaTemplateId=e.target.value;localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId);refreshTemplateSelectors();};
+$('newTemplateBtn').onclick=()=>{const t={id:makeTemplateId(),name:'Template Baru',category:'LAINNYA',active:true,message:'Selamat pagi Bapak/Ibu {nama}.\n\n'};waTemplates.push(t);saveWaTemplates();loadTemplateEditor(t.id);refreshTemplateSelectors();};
+$('duplicateTemplateBtn').onclick=()=>{const src=waTemplates.find(x=>x.id===editingTemplateId);if(!src)return alert('Pilih template yang akan diduplikat.');const t={...src,id:makeTemplateId(),name:(src.name||'Template')+' - Salinan'};waTemplates.push(t);saveWaTemplates();loadTemplateEditor(t.id);refreshTemplateSelectors();};
+$('saveTemplateBtn').onclick=()=>{const name=$('templateNameInput').value.trim(),message=$('templateMessageInput').value.trim();if(!name)return alert('Nama template harus diisi.');if(!message)return alert('Isi pesan harus diisi.');let t=waTemplates.find(x=>x.id===editingTemplateId);if(!t){t={id:makeTemplateId()};waTemplates.push(t);editingTemplateId=t.id;}Object.assign(t,{name,category:$('templateCategoryInput').value,message,active:$('templateActiveInput').checked});saveWaTemplates();refreshTemplateSelectors();renderTemplateList();alert('Template berhasil disimpan.');};
+$('deleteTemplateBtn').onclick=()=>{const t=waTemplates.find(x=>x.id===editingTemplateId);if(!t)return;if(waTemplates.length<=1)return alert('Minimal harus ada satu template.');if(!confirm(`Hapus template “${t.name}”?`))return;waTemplates=waTemplates.filter(x=>x.id!==editingTemplateId);editingTemplateId=waTemplates[0]?.id||'';saveWaTemplates();refreshTemplateSelectors();if(editingTemplateId)loadTemplateEditor(editingTemplateId);};
+$('resetTemplatesBtn').onclick=()=>{if(!confirm('Pulihkan template bawaan? Template buatan Anda akan diganti.'))return;waTemplates=DEFAULT_WA_TEMPLATES.map(x=>({...x}));activeWaTemplateId=waTemplates[0].id;editingTemplateId=activeWaTemplateId;saveWaTemplates();refreshTemplateSelectors();loadTemplateEditor(editingTemplateId);};
+$('templateMessageInput').oninput=updateTemplatePreview;
+document.querySelectorAll('.template-token-help button').forEach(btn=>btn.onclick=()=>{const input=$('templateMessageInput'),token=btn.dataset.token,start=input.selectionStart??input.value.length,end=input.selectionEnd??start;input.value=input.value.slice(0,start)+token+input.value.slice(end);input.focus();input.selectionStart=input.selectionEnd=start+token.length;updateTemplatePreview();});
+$('exportTemplatesBtn').onclick=()=>{const rows=waTemplates.map(t=>({NAMA_TEMPLATE:t.name,KATEGORI:t.category,ISI_PESAN:t.message,AKTIF:t.active!==false?'YA':'TIDAK'}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Template WA');XLSX.writeFile(wb,`template-whatsapp-${new Date().toISOString().slice(0,10)}.xlsx`);};
+$('templateFileInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{defval:''});let added=0;rows.forEach(r=>{const name=String(r.NAMA_TEMPLATE||r['Nama Template']||r.NAMA||'').trim(),message=String(r.ISI_PESAN||r['Isi Pesan']||r.PESAN||'').trim();if(!name||!message)return;waTemplates.push({id:makeTemplateId(),name,category:String(r.KATEGORI||'LAINNYA').toUpperCase(),message,active:!/^TIDAK|NO|FALSE|0$/i.test(String(r.AKTIF||'YA'))});added++;});saveWaTemplates();refreshTemplateSelectors();renderTemplateList();alert(`${added} template berhasil diimport.`);}catch(err){alert('Template gagal diimport: '+err.message);}finally{e.target.value='';}};
+$('waComposerTemplate').onchange=e=>{activeWaTemplateId=e.target.value;localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId);$('waComposerMessage').value=waMessage(waComposerVehicle,activeWaTemplateId);refreshTemplateSelectors();};
+$('closeWaComposerBtn').onclick=closeWaComposer;$('cancelWaComposerBtn').onclick=closeWaComposer;$('waComposerModal').onclick=e=>{if(e.target===$('waComposerModal'))closeWaComposer();};
+$('sendWaComposerBtn').onclick=()=>{if(!waComposerVehicle)return;const phone=normalizePhone(waComposerVehicle.TELEPHONE_CP);if(!phone)return alert('Nomor WhatsApp belum tersedia.');const message=$('waComposerMessage').value.trim();if(!message)return alert('Pesan tidak boleh kosong.');const v=waComposerVehicle,batchMode=waComposerBatchMode;markWaOpened(v);window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,'_blank','noopener');closeWaComposer();$('status').textContent=batchMode?`WA ${batchIndex}/${batchQueue.length}: ${v.POLICE_NO||'-'} dibuka. Klik “Mulai WA Berurutan” lagi untuk customer berikutnya.`:`WhatsApp ${v.POLICE_NO||'-'} dibuka.`;applyFilter();};
+refreshTemplateSelectors();
+
 // ===== V6: Minimize / Maximize sidebar kiri dan kanan =====
 (function initCollapsibleLayout(){
   const layout=document.getElementById('appLayout');
@@ -298,21 +327,4 @@ $('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=follow
     refreshMap();
   });
   refreshMap();
-})();
-
-// ===== V6.1: pastikan Leaflet menghitung ulang ukuran peta di HP =====
-(function ensureMobileMapVisible(){
-  const refresh=()=>{
-    const mapEl=document.getElementById('map');
-    if(!mapEl)return;
-    // Memaksa browser menyelesaikan layout sebelum Leaflet menghitung ukuran.
-    void mapEl.offsetHeight;
-    try{map.invalidateSize({pan:false,animate:false});}catch(_){}
-  };
-  [0,120,350,800,1500].forEach(ms=>setTimeout(refresh,ms));
-  window.addEventListener('load',()=>[50,250,700].forEach(ms=>setTimeout(refresh,ms)));
-  window.addEventListener('orientationchange',()=>[100,350,800].forEach(ms=>setTimeout(refresh,ms)));
-  window.addEventListener('pageshow',()=>setTimeout(refresh,150));
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,150);});
-  if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(refresh,100));
 })();

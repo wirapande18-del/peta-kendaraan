@@ -78,6 +78,15 @@
       </div>
       <small id="batchHelp" class="section-label">Filter kecamatan, pilih customer, lalu buka WhatsApp berurutan.</small>
     </section>
+
+    <section class="card wa-template-card">
+      <div class="batch-head"><h2><span class="section-icon">📝</span><span class="section-label">Template Pesan WA</span></h2><span id="activeTemplateBadge">-</span></div>
+      <div class="section-label">
+        <select id="quickTemplateSelect" title="Template aktif"></select>
+        <button id="manageTemplatesBtn" class="secondary full" type="button">Kelola Template</button>
+      </div>
+      <small class="section-label">Template dapat diedit kapan saja tanpa mengubah program atau data kendaraan.</small>
+    </section>
     <section class="card list-card">
       <div class="batch-head"><h2><span class="section-icon">🚗</span><span class="section-label">Daftar kendaraan</span></h2><span id="filteredCount">0 data</span></div>
       <div id="vehicleList" class="vehicle-list"></div>
@@ -168,6 +177,42 @@
     <div id="followUpHistory" class="follow-up-history"></div>
   </div>
 </div>
+
+<div id="templateModal" class="modal hidden">
+  <div class="modal-box template-modal-box">
+    <div class="modal-head"><div><h2>Kelola Template WhatsApp</h2><small>Tambah, edit, duplikat, hapus, import, dan export template.</small></div><button id="closeTemplateBtn" class="icon-btn" type="button">×</button></div>
+    <div class="template-layout">
+      <aside class="template-list-panel">
+        <div class="row wrap"><button id="newTemplateBtn" class="success" type="button">+ Template Baru</button><button id="duplicateTemplateBtn" class="secondary" type="button">Duplikat</button></div>
+        <div id="templateList" class="template-list"></div>
+        <div class="row wrap template-file-actions">
+          <label class="upload compact-upload">Import Excel/CSV<input id="templateFileInput" type="file" accept=".xlsx,.xls,.csv" /></label>
+          <button id="exportTemplatesBtn" class="secondary" type="button">Export Excel</button>
+        </div>
+      </aside>
+      <section class="template-editor">
+        <label>Nama Template<input id="templateNameInput" placeholder="Contoh: Reminder Service 6 Bulan"></label>
+        <label>Kategori<select id="templateCategoryInput"><option value="REMINDER">Reminder Service</option><option value="PROMO">Promo</option><option value="UCAPAN">Ucapan</option><option value="LAINNYA">Lainnya</option></select></label>
+        <label>Isi Pesan<textarea id="templateMessageInput" rows="12" placeholder="Tulis pesan WhatsApp..."></textarea></label>
+        <div class="template-token-help"><b>Variabel otomatis:</b> <button type="button" data-token="{nama}">{nama}</button> <button type="button" data-token="{plat}">{plat}</button> <button type="button" data-token="{model}">{model}</button> <button type="button" data-token="{tahun}">{tahun}</button> <button type="button" data-token="{km}">{km}</button> <button type="button" data-token="{sa}">{sa}</button> <button type="button" data-token="{alamat}">{alamat}</button> <button type="button" data-token="{tanggal}">{tanggal}</button></div>
+        <label class="inline-check"><input id="templateActiveInput" type="checkbox" checked> Template aktif</label>
+        <div class="template-preview"><b>Contoh hasil pesan</b><div id="templatePreview"></div></div>
+        <div class="row wrap"><button id="saveTemplateBtn" class="success" type="button">Simpan Template</button><button id="deleteTemplateBtn" class="danger" type="button">Hapus</button><button id="resetTemplatesBtn" class="secondary" type="button">Pulihkan Template Bawaan</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="waComposerModal" class="modal hidden">
+  <div class="modal-box wa-composer-box">
+    <div class="modal-head"><div><h2>Pesan WhatsApp</h2><small id="waComposerVehicle">-</small></div><button id="closeWaComposerBtn" class="icon-btn" type="button">×</button></div>
+    <label>Pilih Template<select id="waComposerTemplate"></select></label>
+    <label>Edit pesan sebelum dikirim<textarea id="waComposerMessage" rows="11"></textarea></label>
+    <small>Pesan ini bebas diedit. Perubahan di sini tidak mengubah template utama.</small>
+    <div class="row wrap"><button id="sendWaComposerBtn" class="success" type="button">Buka WhatsApp</button><button id="cancelWaComposerBtn" class="secondary" type="button">Batal</button></div>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
