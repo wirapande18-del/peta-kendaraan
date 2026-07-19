@@ -87,3 +87,20 @@
 
 /* V7 - Template WhatsApp */
 .wa-template-card select{width:100%;margin-bottom:8px}.wa-template-card #activeTemplateBadge{max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.template-modal-box{width:min(1050px,94vw);max-height:92vh;overflow:auto}.template-layout{display:grid;grid-template-columns:300px 1fr;gap:18px}.template-list-panel{border-right:1px solid #dbe3ee;padding-right:14px}.template-list{display:flex;flex-direction:column;gap:7px;margin:12px 0;max-height:480px;overflow:auto}.template-list-item{display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:#f8fafc;color:#172033;border:1px solid #dbe3ee;padding:10px}.template-list-item:hover,.template-list-item.selected{background:#eaf2ff;border-color:#1769e0}.template-list-item small{margin-top:3px;color:#64748b}.template-editor{display:flex;flex-direction:column;gap:10px}.template-editor label,.wa-composer-box label{display:flex;flex-direction:column;gap:5px;font-weight:600}.template-editor input,.template-editor select,.template-editor textarea,.wa-composer-box select,.wa-composer-box textarea{width:100%;box-sizing:border-box}.template-token-help{padding:10px;border-radius:9px;background:#f1f5f9;line-height:2}.template-token-help button{padding:3px 7px;font-size:12px;background:white;color:#1769e0;border:1px solid #b8cdf4}.inline-check{flex-direction:row!important;align-items:center}.inline-check input{width:auto}.template-preview{border:1px solid #dbe3ee;background:#fff;border-radius:10px;padding:12px}.template-preview div{white-space:pre-wrap;margin-top:7px;color:#334155}.compact-upload{padding:8px}.template-file-actions{align-items:stretch}.wa-composer-box{width:min(650px,94vw)}.wa-composer-box textarea{white-space:pre-wrap}.modal textarea{resize:vertical}@media(max-width:780px){.template-layout{grid-template-columns:1fr}.template-list-panel{border-right:0;border-bottom:1px solid #dbe3ee;padding-right:0;padding-bottom:12px}.template-list{max-height:220px}}
+
+
+/* V7.1 - Perbaikan peta blank di HP */
+html,body{width:100%;height:100%;min-height:100%;overflow:hidden}
+.app-layout{min-height:0}
+.map-wrap{position:relative;min-width:0;min-height:0;overflow:hidden}
+#map{position:absolute!important;inset:0;width:100%!important;height:100%!important;min-height:260px;background:#dde5ef;z-index:1}
+@supports(height:100dvh){.app-layout{height:calc(100dvh - 76px)}}
+@media(max-width:780px){
+ html,body{height:100%;min-height:100%;overflow:hidden}
+ .app-header{position:relative;z-index:1601}
+ .app-layout{height:calc(100vh - 68px)!important;min-height:320px!important;overflow:hidden}
+ @supports(height:100dvh){.app-layout{height:calc(100dvh - 68px)!important}}
+ .map-wrap{display:block!important;grid-column:2;grid-row:1;height:100%!important;min-height:320px!important;width:100%!important}
+ #map{display:block!important;visibility:visible!important;opacity:1!important;min-height:320px!important}
+ .leaflet-container{font-size:12px;touch-action:pan-x pan-y;background:#dde5ef}
+}

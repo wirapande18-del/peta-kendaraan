@@ -13,9 +13,10 @@ const readJSON=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f
 let vehicles=readJSON(DATA_KEY,null)||readJSON('vehicleMapDataV3',null)||[...(window.DEFAULT_VEHICLES||[])];
 let followUps=readJSON(FOLLOW_UP_KEY,{}),activeFollowUpVehicle=null,selectedFollowUps=new Set(),batchQueue=[],batchIndex=0;
 let geoCache=readJSON(GEO_KEY,null)||readJSON('vehicleMapGeocodeCacheV3',{})||{},filteredVehicles=[],stopRequested=false,markers=[],editingVehicle=null,manualMode=false,manualPreview=null;
-const saveData=()=>localStorage.setItem(DATA_KEY,JSON.stringify(vehicles));
-const saveGeo=()=>localStorage.setItem(GEO_KEY,JSON.stringify(geoCache));
-const saveFollowUps=()=>localStorage.setItem(FOLLOW_UP_KEY,JSON.stringify(followUps));
+const safeStore=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true;}catch(err){console.warn('Penyimpanan lokal gagal:',err);const status=document.getElementById('status');if(status)status.textContent='Penyimpanan HP penuh/terblokir. Peta tetap dapat digunakan.';return false;}};
+const saveData=()=>safeStore(DATA_KEY,vehicles);
+const saveGeo=()=>safeStore(GEO_KEY,geoCache);
+const saveFollowUps=()=>safeStore(FOLLOW_UP_KEY,followUps);
 const followUpKey=v=>normalizePlate(v&&v.POLICE_NO);
 const followUpStatusLabel=s=>({BELUM:'Belum Follow Up',SUDAH:'Sudah Follow Up',TERKIRIM:'Sudah Terkirim',BELUM_DIBACA:'Belum Dibaca',DIBACA:'Sudah Dibaca',DIBALAS:'Sudah Dibalas',NOMOR_TIDAK_AKTIF:'Nomor Tidak Aktif',TIDAK_ADA_WHATSAPP:'Tidak Ada WhatsApp',BOOKING:'Booking',TIDAK_TERHUBUNG:'Tidak Terhubung',FOLLOW_UP_ULANG:'Follow Up Ulang',SELESAI:'Selesai'}[s]||s||'Belum Follow Up');
 const followUpReasonLabel=s=>({REMINDER_SERVICE:'Reminder service berkala',CUSTOMER_SIBUK:'Customer sedang sibuk',TIDAK_DIANGKAT:'Telepon tidak diangkat',NOMOR_TIDAK_AKTIF:'Nomor tidak aktif',TIDAK_ADA_WHATSAPP:'Nomor tidak ada WhatsApp',SUDAH_SERVICE:'Sudah melakukan service',SERVICE_DI_TEMPAT_LAIN:'Service di tempat lain',KENDARAAN_DIJUAL:'Kendaraan sudah dijual',PINDAH_DOMISILI:'Customer pindah domisili',MENUNGGU_KONFIRMASI:'Menunggu konfirmasi customer',JANJI_SERVICE:'Customer janji datang service',BELUM_BERSEDIA:'Customer belum bersedia service',LAINNYA:'Lainnya'}[s]||s||'-');
@@ -82,7 +83,7 @@ const DEFAULT_WA_TEMPLATES=[
 let waTemplates=readJSON(WA_TEMPLATE_KEY,null)||DEFAULT_WA_TEMPLATES.map(x=>({...x}));
 let activeWaTemplateId=localStorage.getItem(WA_ACTIVE_TEMPLATE_KEY)||waTemplates[0]?.id||'';
 let editingTemplateId='',waComposerVehicle=null,waComposerBatchMode=false;
-const saveWaTemplates=()=>localStorage.setItem(WA_TEMPLATE_KEY,JSON.stringify(waTemplates));
+const saveWaTemplates=()=>safeStore(WA_TEMPLATE_KEY,waTemplates);
 function makeTemplateId(){return 'tpl-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);}
 function activeWaTemplates(){return waTemplates.filter(x=>x.active!==false);}
 function getActiveWaTemplate(){return waTemplates.find(x=>x.id===activeWaTemplateId&&x.active!==false)||activeWaTemplates()[0]||waTemplates[0];}
@@ -120,7 +121,8 @@ function openNextBatchWa(){
 
 const ADVISOR_COLORS=['#1769e0','#d92d20','#16a34a','#9333ea','#f59e0b','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5','#0f766e','#7c2d12'];
 let advisorColorMap={};
-const map=L.map('map').setView([-8.4095,115.1889],9);
+if(typeof L==='undefined'){throw new Error('Leaflet gagal dimuat. Periksa koneksi internet lalu refresh halaman.');}
+const map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([-8.4095,115.1889],9);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors',crossOrigin:true}).addTo(map);
 
 function hydrateCoordinates(){vehicles.forEach(v=>{const c=geoCache[cacheKey(v.ADDRESS)];if(c){v.lat=Number(c.lat);v.lng=Number(c.lng);v.geocodeFailed=false;}});}
@@ -175,7 +177,14 @@ $('deleteAllBtn').onclick=()=>{if(!confirm('Hapus semua data kendaraan?'))return
 $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat ini akan diganti.'))return;vehicles=[...(window.DEFAULT_VEHICLES||[])];saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Data awal dipulihkan.';};
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
 $('searchInput').oninput=applyFilter;$('advisorFilter').onchange=applyFilter;$('regencyFilter').onchange=()=>{buildRegionFilters();applyFilter();};$('districtFilter').onchange=applyFilter;$('followUpStatusFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';$('regencyFilter').value='';buildRegionFilters();$('districtFilter').value='';$('followUpStatusFilter').value='';applyFilter();};$('selectVisibleBtn').onclick=()=>{filteredVehicles.forEach(v=>selectedFollowUps.add(followUpKey(v)));renderList();};$('clearSelectionBtn').onclick=()=>{selectedFollowUps.clear();renderList();};$('startBatchWaBtn').onclick=()=>{if(batchQueue.length&&batchIndex<batchQueue.length)return openNextBatchWa();batchQueue=vehicles.filter(v=>selectedFollowUps.has(followUpKey(v)));batchIndex=0;if(!batchQueue.length)return alert('Pilih minimal satu customer.');openNextBatchWa();};
-hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();saveData();setTimeout(()=>map.invalidateSize(),200);window.addEventListener('resize',()=>map.invalidateSize());
+hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();saveData();
+function refreshMapSize(){try{map.invalidateSize({pan:false,debounceMoveend:true});}catch(_){}}
+[0,100,300,700,1200].forEach(ms=>setTimeout(refreshMapSize,ms));
+window.addEventListener('load',refreshMapSize);
+window.addEventListener('resize',refreshMapSize);
+window.addEventListener('orientationchange',()=>[100,350,800].forEach(ms=>setTimeout(refreshMapSize,ms)));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refreshMapSize,100);});
+if(window.visualViewport)window.visualViewport.addEventListener('resize',refreshMapSize);
 
 // ===== Analisa dan perbaikan alamat Excel =====
 let addressAnalysis=[];
