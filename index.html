@@ -5,26 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Peta Kendaraan Service</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
-  <link rel="stylesheet" href="style.css?v=12-smart-excel" />
+  <link rel="stylesheet" href="style.css?v=13-dashboard" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="data.js?v=12-smart-excel"></script>
 </head>
-<body>
+<body class="view-dashboard">
+<aside class="main-nav" id="mainNav">
+  <div class="brand-mark"><span class="brand-pin">🚗</span><b>Peta Kendaraan<br>Service</b></div>
+  <nav class="main-menu" aria-label="Menu utama">
+    <button class="main-menu-item active" data-view="dashboard" type="button"><span>▦</span>Dashboard</button>
+    <button class="main-menu-item" data-view="map" type="button"><span>⌖</span>Peta Kendaraan</button>
+    <button class="main-menu-item" data-view="followup" type="button"><span>▣</span>Follow Up</button>
+    <button class="main-menu-item" data-view="data" type="button"><span>↥</span>Data &amp; Upload</button>
+    <button class="main-menu-item" data-view="settings" type="button"><span>⚙</span>Pengaturan</button>
+  </nav>
+  <div class="nav-profile"><span>SA</span><div><b>Service Advisor</b><small>Monitoring Follow Up</small></div></div>
+</aside>
 <header class="app-header">
   <div class="header-left">
     <button id="toggleLeftSidebar" class="layout-toggle" type="button" title="Minimize/Maximize sidebar kiri">☰</button>
-    <div><h1>Peta Kendaraan Service</h1><p>OpenStreetMap gratis—tanpa API key dan tanpa kartu kredit.</p></div>
+    <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
 </header>
+
+<section id="dashboardView" class="dashboard-view app-view">
+  <div class="dashboard-filters">
+    <label>Periode
+      <select id="dashboardPeriod"><option value="all">Semua Periode</option><option value="30">30 Hari Terakhir</option><option value="90">3 Bulan Terakhir</option><option value="365">1 Tahun Terakhir</option></select>
+    </label>
+    <label>Service Advisor<select id="dashboardAdvisor"><option value="">Semua Service Advisor</option></select></label>
+    <label>Kabupaten/Kota<select id="dashboardRegency"><option value="">Semua Kabupaten/Kota</option></select></label>
+    <label>Kecamatan<select id="dashboardDistrict"><option value="">Semua Kecamatan</option></select></label>
+    <button id="applyDashboardFilter" type="button">⌕ Terapkan Filter</button>
+  </div>
+  <div class="kpi-grid">
+    <article class="kpi-card teal"><span class="kpi-icon">👥</span><div><span>Total Customer</span><strong id="dashTotal">0</strong><small>Semua customer pada filter ini</small></div></article>
+    <article class="kpi-card green"><span class="kpi-icon">✓</span><div><span>Sudah Follow Up</span><strong id="dashFollowed">0</strong><small id="dashFollowedHint">0% dari total customer</small></div></article>
+    <article class="kpi-card orange"><span class="kpi-icon">◷</span><div><span>Belum Follow Up</span><strong id="dashPending">0</strong><small id="dashPendingHint">0% dari total customer</small></div></article>
+    <article class="kpi-card achievement"><div><span>Pencapaian Total</span><strong id="dashAchievement">0%</strong><small>Customer yang sudah ditindaklanjuti</small></div><div id="achievementRing" class="achievement-ring"><b>0%</b></div></article>
+  </div>
+  <div class="dashboard-chart-grid">
+    <article class="dashboard-card donut-card"><h2>Follow Up vs Belum Follow Up</h2><div class="donut-content"><div id="followUpDonut" class="followup-donut"><span id="donutPercent">0%</span></div><div id="donutLegend" class="donut-legend"></div></div></article>
+    <article class="dashboard-card status-chart-card"><h2>Status Follow Up</h2><div id="statusBarChart" class="status-bar-chart"></div></article>
+    <article class="dashboard-card advisor-chart-card"><h2>Pencapaian per Service Advisor</h2><div id="advisorBarChart" class="advisor-bar-chart"></div></article>
+    <article class="dashboard-card summary-card"><h2>Ringkasan Status</h2><div class="dashboard-table-scroll"><table><thead><tr><th>Status Follow Up</th><th>Jumlah</th><th>Persentase</th><th>Deskripsi</th></tr></thead><tbody id="statusSummaryRows"></tbody></table></div></article>
+    <article class="dashboard-card trend-card"><h2>Tren Follow Up Harian</h2><div class="trend-legend"><span class="green-dot">● Sudah Follow Up</span><span class="orange-dot">● Aktivitas Harian</span></div><div id="trendChart" class="trend-chart"></div></article>
+  </div>
+  <div class="dashboard-footer"><span id="dashboardUpdated">Data diperbarui terakhir: -</span><span>Sumber: Data Peta Kendaraan Service</span></div>
+</section>
 <main id="appLayout" class="app-layout">
   <aside id="leftSidebar" class="panel left-sidebar">
     <div class="sidebar-title"><span class="sidebar-title-text">Kontrol Peta</span><span class="sidebar-mini-icon">⚙</span></div>
-    <section class="card">
+    <section class="card data-control-card">
       <h2><span class="section-icon">📊</span><span class="section-label">Data kendaraan</span></h2>
       <div class="stats">
         <div><strong id="totalData">0</strong><span>Total data</span></div>
@@ -47,7 +84,7 @@
       <small class="section-label">Setelah upload, angka “Belum diproses” adalah alamat yang belum dicari—bukan gagal.</small>
       <small class="section-label"><b>Format fleksibel:</b> urutan kolom bebas, data kurang tetap masuk, kolom tambahan diabaikan, dan upload berikutnya otomatis melengkapi NO RANGKA serta LAST SERVICE.</small>
     </section>
-    <section class="card">
+    <section class="card map-filter-card">
       <h2><span class="section-icon">🔎</span><span class="section-label">Cari dan filter</span></h2>
       <div class="section-label">
         <input id="searchInput" placeholder="Cari plat, nama, model, alamat..." />
@@ -60,7 +97,7 @@
         <button id="showAllBtn" class="secondary full">Tampilkan semua</button>
       </div>
     </section>
-    <section class="card legend-card">
+    <section class="card legend-card map-legend-card">
       <h2><span class="section-icon">🎨</span><span class="section-label">Warna Service Advisor</span></h2>
       <div id="advisorLegend" class="advisor-legend section-label"></div>
     </section>
@@ -80,7 +117,7 @@
       <small id="batchHelp" class="section-label">Filter kecamatan, pilih customer, lalu buka WhatsApp berurutan.</small>
     </section>
 
-    <section class="card wa-template-card">
+    <section class="card wa-template-card settings-card">
       <div class="batch-head"><h2><span class="section-icon">📝</span><span class="section-label">Template Pesan WA</span></h2><span id="activeTemplateBadge">-</span></div>
       <div class="section-label">
         <select id="quickTemplateSelect" title="Template aktif"></select>
@@ -227,6 +264,7 @@
   </div>
 </div>
 
-<script src="app.js?v=12-smart-excel-offline"></script>
+<script src="app.js?v=13-dashboard"></script>
+<script src="dashboard.js?v=13-dashboard"></script>
 </body>
 </html>
