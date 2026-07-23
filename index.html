@@ -7,14 +7,26 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-8-20260723-1" />
+  <link rel="stylesheet" href="style.css?v=14-0-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-8-20260723-1"></script>
-  <script src="data.js?v=13-8-20260723-1"></script>
+  <script src="storage.js?v=14-0-20260723-1"></script>
+  <script src="data.js?v=14-0-20260723-1"></script>
 </head>
 <body class="view-dashboard">
+<div id="cloudLoginModal" class="cloud-login-modal">
+  <form id="cloudLoginForm" class="cloud-login-card">
+    <div class="cloud-login-logo">🚗</div>
+    <h1>Peta Kendaraan Service</h1>
+    <p>Masuk untuk membuka data kendaraan yang tersimpan online.</p>
+    <label>Email<input id="cloudEmail" type="email" autocomplete="username" placeholder="nama@agungtoyota.co.id" required></label>
+    <label>Password<input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Password Supabase" required></label>
+    <button id="cloudLoginBtn" type="submit">Masuk ke Aplikasi</button>
+    <span id="cloudLoginStatus"></span>
+    <small>Akun dibuat oleh administrator melalui menu Authentication di Supabase.</small>
+  </form>
+</div>
 <aside class="main-nav" id="mainNav">
   <div class="brand-mark"><span class="brand-pin">🚗</span><b>Peta Kendaraan<br>Service</b></div>
   <nav class="main-menu" aria-label="Menu utama">
@@ -33,7 +45,11 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
-    <span id="versionBadge" class="version-badge">Versi 13.8</span>
+    <span id="cloudStatusBadge" class="cloud-status offline">Belum login</span>
+    <button id="cloudSyncBtn" class="cloud-action" type="button" title="Sinkronkan sekarang">↻ Sinkron</button>
+    <span id="cloudUserEmail" class="cloud-user"></span>
+    <button id="cloudLogoutBtn" class="cloud-action" type="button">Keluar</button>
+    <span id="versionBadge" class="version-badge">Versi 14.0</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -353,7 +369,10 @@
   </div>
 </div>
 
-<script src="app.js?v=13-8-20260723-1"></script>
-<script src="dashboard.js?v=13-8-20260723-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2';"></script>
+<script src="supabase-config.js?v=14-0-20260723-1"></script>
+<script src="cloud-sync.js?v=14-0-20260723-1"></script>
+<script src="app.js?v=14-0-20260723-1"></script>
+<script src="dashboard.js?v=14-0-20260723-1"></script>
 </body>
 </html>

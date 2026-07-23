@@ -1,4 +1,4 @@
-const APP_VERSION='13.8.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='14.0.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -33,9 +33,9 @@ let followUps=readJSON(FOLLOW_UP_KEY,{}),activeFollowUpVehicle=null,selectedFoll
 let geoCache=readJSON(GEO_KEY,null)||readJSON('vehicleMapGeocodeCacheV3',{})||{},filteredVehicles=[],stopRequested=false,markers=[],editingVehicle=null,manualMode=false,manualPreview=null;
 const safeStore=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true;}catch(err){console.warn('Penyimpanan lokal gagal:',err);const status=document.getElementById('status');if(status)status.textContent='Penyimpanan HP penuh/terblokir. Peta tetap dapat digunakan.';return false;}};
 async function saveLarge(key,value){try{if(!window.BigStore)throw new Error('Penyimpanan data besar tidak tersedia');await BigStore.set(key,value);return true;}catch(err){console.warn('IndexedDB gagal:',err);$('status').textContent='Penyimpanan data besar gagal. Periksa izin penyimpanan browser.';return false;}}
-const saveData=()=>saveLarge('vehicles',vehicles);
-const saveGeo=()=>saveLarge('geoCache',geoCache);
-const saveFollowUps=()=>{invalidateFollowUpLookup();const text=JSON.stringify(followUps);if(text.length<1500000)safeStore(FOLLOW_UP_KEY,followUps);return saveLarge('followUps',followUps);};
+async function saveData(){const saved=await saveLarge('vehicles',vehicles);window.CloudSync?.queue('vehicles');return saved;}
+async function saveGeo(){const saved=await saveLarge('geoCache',geoCache);window.CloudSync?.queue('geoCache');return saved;}
+async function saveFollowUps(){invalidateFollowUpLookup();const text=JSON.stringify(followUps);if(text.length<1500000)safeStore(FOLLOW_UP_KEY,followUps);const saved=await saveLarge('followUps',followUps);window.CloudSync?.queue('followUps');return saved;}
 async function loadLargeStoreData(){
   if(!window.BigStore)return;
   try{
@@ -150,7 +150,7 @@ const DEFAULT_WA_TEMPLATES=[
 let waTemplates=readJSON(WA_TEMPLATE_KEY,null)||DEFAULT_WA_TEMPLATES.map(x=>({...x}));
 let activeWaTemplateId=localStorage.getItem(WA_ACTIVE_TEMPLATE_KEY)||waTemplates[0]?.id||'';
 let editingTemplateId='',waComposerVehicle=null,waComposerBatchMode=false;
-const saveWaTemplates=(withBackup=true)=>{if(withBackup){const old=readJSON(WA_TEMPLATE_KEY,null);if(old)safeStore(WA_TEMPLATE_BACKUP_KEY,old);}return safeStore(WA_TEMPLATE_KEY,waTemplates);};
+const saveWaTemplates=(withBackup=true)=>{if(withBackup){const old=readJSON(WA_TEMPLATE_KEY,null);if(old)safeStore(WA_TEMPLATE_BACKUP_KEY,old);}const saved=safeStore(WA_TEMPLATE_KEY,waTemplates);window.CloudSync?.queue('settings');return saved;};
 function makeTemplateId(){return 'tpl-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);}
 function activeWaTemplates(){return waTemplates.filter(x=>x.active!==false);}
 function getActiveWaTemplate(){return waTemplates.find(x=>x.id===activeWaTemplateId&&x.active!==false)||activeWaTemplates()[0]||waTemplates[0];}
@@ -437,7 +437,7 @@ $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat i
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
 let searchTimer;$('searchInput').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>applyFilter(),250);};$('advisorFilter').onchange=applyFilter;$('regencyFilter').onchange=()=>{buildRegionFilters();applyFilter();};$('districtFilter').onchange=applyFilter;$('followUpStatusFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';$('regencyFilter').value='';buildRegionFilters();$('districtFilter').value='';$('followUpStatusFilter').value='';applyFilter();};$('selectVisibleBtn').onclick=()=>{filteredVehicles.forEach(v=>selectedFollowUps.add(followUpKey(v)));renderList();};$('clearSelectionBtn').onclick=()=>{selectedFollowUps.clear();renderList();};$('startBatchWaBtn').onclick=()=>{if(batchQueue.length&&batchIndex<batchQueue.length)return openNextBatchWa();batchQueue=vehicles.filter(v=>selectedFollowUps.has(followUpKey(v)));batchIndex=0;if(!batchQueue.length)return alert('Pilih minimal satu customer.');openNextBatchWa();};
 $('listPrevBtn').onclick=()=>{if(listPage>1){listPage--;renderList();}};$('listNextBtn').onclick=()=>{const pages=Math.ceil(filteredVehicles.length/Number($('listPageSize').value||100));if(listPage<pages){listPage++;renderList();}};$('listPageSize').onchange=()=>{listPage=1;renderList();};
-hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();loadLargeStoreData();
+hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();const localStoreReady=loadLargeStoreData();
 function refreshMapSize(){try{map.invalidateSize({pan:false,debounceMoveend:true});}catch(_){}}
 [0,100,300,700,1200].forEach(ms=>setTimeout(refreshMapSize,ms));
 window.addEventListener('load',refreshMapSize);
@@ -801,3 +801,56 @@ refreshTemplateSelectors();
   });
   refreshMap();
 })();
+
+// ===== V14: jembatan sinkronisasi Supabase =====
+window.PetaCloudBridge={
+  ready(){return localStoreReady;},
+  getState(){
+    return {
+      vehicles,
+      followUps,
+      geoCache,
+      settings:{waTemplates,activeWaTemplateId}
+    };
+  },
+  vehicleKey(v,index=0){
+    const frame=normalizeFrame(v?.['NO RANGKA']||v?.NO_RANGKA||v?.CHASSIS_NO);
+    const plate=normalizePlate(v?.POLICE_NO);
+    if(frame)return `F:${frame}`;
+    if(plate)return `P:${plate}`;
+    return `X:${identityText(v?.CUSTOMER)}:${identityText(v?.MODEL)}:${index}`;
+  },
+  async applyState(cloudState){
+    if(Array.isArray(cloudState?.vehicles))vehicles=cloudState.vehicles;
+    if(cloudState?.followUps&&typeof cloudState.followUps==='object')followUps=cloudState.followUps;
+    if(cloudState?.geoCache&&typeof cloudState.geoCache==='object')geoCache=cloudState.geoCache;
+    if(Array.isArray(cloudState?.settings?.waTemplates)&&cloudState.settings.waTemplates.length){
+      waTemplates=cloudState.settings.waTemplates;
+      activeWaTemplateId=cloudState.settings.activeWaTemplateId||waTemplates[0]?.id||'';
+      safeStore(WA_TEMPLATE_KEY,waTemplates);
+      localStorage.setItem(WA_ACTIVE_TEMPLATE_KEY,activeWaTemplateId);
+    }
+    await Promise.all([
+      window.BigStore?.set('vehicles',vehicles),
+      window.BigStore?.set('followUps',followUps),
+      window.BigStore?.set('geoCache',geoCache)
+    ]);
+    invalidateFollowUpLookup();
+    reconcileFollowUps();
+    searchIndexCache=new WeakMap();
+    hydrateCoordinates();
+    buildAdvisorFilter();
+    buildRegionFilters();
+    applyFilter();
+    refreshTemplateSelectors();
+  },
+  refresh(){
+    searchIndexCache=new WeakMap();
+    invalidateFollowUpLookup();
+    hydrateCoordinates();
+    buildAdvisorFilter();
+    buildRegionFilters();
+    applyFilter();
+    refreshTemplateSelectors();
+  }
+};

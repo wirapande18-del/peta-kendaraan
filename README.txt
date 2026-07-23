@@ -1,20 +1,28 @@
-PETA KENDARAAN SERVICE — VERSI 4
+PETA KENDARAAN SERVICE — VERSI 14.0 SUPABASE ONLINE
 
-PERBAIKAN UTAMA
-- Pencarian alamat Bali dilakukan bertahap, tetapi hanya satu permintaan OpenStreetMap setiap ±1 detik agar tidak diblokir.
-- Singkatan BR, JL, DSN, LINK, KEC, KAB diperbaiki otomatis.
-- Kecamatan Bali digunakan untuk menambahkan kabupaten secara otomatis.
-- Alamat dicoba dari tingkat alamat, desa/kecamatan, sampai wilayah kabupaten.
-- Koordinat yang berhasil disimpan di browser sehingga tidak dicari ulang.
-- Data versi 3 di browser otomatis dibaca saat membuka versi 4.
-- Alamat yang tetap gagal dapat diperbaiki atau ditentukan manual dengan klik peta.
+VERSI INI MENAMBAHKAN
+- Login pengguna.
+- Penyimpanan Supabase agar data yang sama dapat dibuka dari HP dan laptop.
+- Sinkronisasi kendaraan, koordinat peta, follow up, antrean cek WA, dan template.
+- IndexedDB tetap digunakan sebagai cadangan offline dan untuk menjaga kecepatan.
+- Pengiriman perubahan per baris agar tetap ringan untuk 7.000+ kendaraan.
+
+SEBELUM DEPLOY
+1. Ikuti README-SUPABASE-V14.txt.
+2. Jalankan SETUP-SUPABASE-V14.sql di SQL Editor Supabase.
+3. Buat akun pengguna di Authentication > Users.
 
 CARA UPLOAD KE GITHUB
-1. Buka repository GitHub aplikasi lama.
-2. Hapus file lama atau upload seluruh isi folder ini ke bagian paling luar repository.
-3. Pastikan index.html, app.js, style.css, package.json, vercel.json dan folder api terlihat langsung.
+1. Extract ZIP versi 14.0.
+2. Upload seluruh ISI folder ke bagian paling luar repository GitHub.
+3. Pastikan index.html, app.js, cloud-sync.js, supabase-config.js, style.css,
+   package.json, vercel.json, dan folder api terlihat langsung.
 4. Commit changes.
-5. Vercel akan melakukan deploy otomatis.
+5. Tunggu Vercel berstatus Ready.
+6. Buka aplikasi dan pastikan tertulis Versi 14.0.
 
-CATATAN
-Proses 90 alamat dapat memerlukan beberapa menit karena layanan OpenStreetMap gratis mewajibkan permintaan tidak terlalu cepat. Jangan menekan tombol Proses alamat berulang kali. Tunggu sampai status selesai.
+MIGRASI DATA LAMA
+Buka V14 pertama kali pada browser/perangkat yang masih menyimpan data V13.8.
+Setelah login, database yang masih kosong akan otomatis diisi dari penyimpanan
+lokal. Tunggu indikator berubah menjadi "Tersimpan online" sebelum membuka
+aplikasi dari perangkat lain.
