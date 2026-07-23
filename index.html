@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-7-20260723-1" />
+  <link rel="stylesheet" href="style.css?v=13-8-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-7-20260723-1"></script>
-  <script src="data.js?v=13-7-20260723-1"></script>
+  <script src="storage.js?v=13-8-20260723-1"></script>
+  <script src="data.js?v=13-8-20260723-1"></script>
 </head>
 <body class="view-dashboard">
 <aside class="main-nav" id="mainNav">
@@ -21,6 +21,7 @@
     <button class="main-menu-item active" data-view="dashboard" type="button"><span>▦</span>Dashboard</button>
     <button class="main-menu-item" data-view="map" type="button"><span>⌖</span>Peta Kendaraan</button>
     <button class="main-menu-item" data-view="followup" type="button"><span>▣</span>Follow Up</button>
+    <button id="openWaReviewNavBtn" class="main-menu-action" type="button"><span>✓</span><span class="main-menu-action-label">Antrean Cek WA</span><em id="waReviewNavCount">0</em></button>
     <button class="main-menu-item" data-view="data" type="button"><span>↥</span>Data &amp; Upload</button>
     <button class="main-menu-item" data-view="settings" type="button"><span>⚙</span>Pengaturan</button>
   </nav>
@@ -32,7 +33,7 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
-    <span id="versionBadge" class="version-badge">Versi 13.7</span>
+    <span id="versionBadge" class="version-badge">Versi 13.8</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -159,6 +160,37 @@
       </div>
       <small id="manualHelp"></small>
     </div>
+  </div>
+</div>
+
+<div id="waReviewModal" class="modal hidden">
+  <div class="modal-box wa-review-modal-box">
+    <div class="modal-head wa-review-head"><div><h2>Antrean Cek Hasil WhatsApp</h2><small>Customer yang sudah dibuka WhatsApp-nya akan masuk ke antrean ini.</small></div><div class="wa-review-head-actions"><span id="waReviewBadge">0 Belum Dicek</span><button id="closeWaReviewBtn" class="icon-btn" type="button">×</button></div></div>
+    <div class="wa-review-layout">
+      <aside class="wa-review-queue-panel">
+        <input id="waReviewSearchInput" placeholder="Cari plat, customer, SA, atau wilayah...">
+        <div id="waReviewQueueList" class="wa-review-queue-list"></div>
+      </aside>
+      <section class="wa-review-detail">
+        <div id="waReviewEmpty" class="wa-review-empty hidden"><b>Semua hasil WhatsApp sudah diperiksa</b><span>Tidak ada customer berstatus WA Dibuka.</span></div>
+        <div id="waReviewActive">
+          <h3 id="waReviewVehicleTitle">-</h3>
+          <strong id="waReviewCustomerName">-</strong>
+          <span id="waReviewVehicleMeta">-</span>
+          <span id="waReviewPhone">-</span>
+          <button id="waReviewOpenChatBtn" class="wa-review-chat-btn" type="button">Buka Chat WhatsApp</button>
+          <h4>Pilih hasil setelah mengecek WhatsApp:</h4>
+          <div class="wa-review-status-grid">
+            <button type="button" data-review-status="CENTANG_SATU" data-review-reason="PESAN_CENTANG_SATU">✓ Centang Satu</button>
+            <button type="button" data-review-status="BELUM_DIBACA" data-review-reason="PESAN_CENTANG_DUA">✓✓ Centang Dua - Belum Dibaca</button>
+            <button type="button" data-review-status="DIBACA" data-review-reason="DIBACA_TIDAK_DIBALAS">✓✓ Dibaca - Tidak Dibalas</button>
+            <button type="button" data-review-status="DIBALAS" data-review-reason="CUSTOMER_MEMBALAS">💬 Sudah Dibalas</button>
+          </div>
+          <div class="wa-review-helper">ⓘ Setelah status dipilih, customer otomatis keluar dari antrean dan lanjut ke customer berikutnya.</div>
+        </div>
+      </section>
+    </div>
+    <div class="wa-review-footer"><span id="waReviewProgressText">Customer 0 dari 0</span><div class="wa-review-progress"><i id="waReviewProgressBar"></i></div><button id="waReviewSkipBtn" class="secondary" type="button">Lewati</button><button id="waReviewNextBtn" type="button">Berikutnya ›</button></div>
   </div>
 </div>
 
@@ -321,7 +353,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-7-20260723-1"></script>
-<script src="dashboard.js?v=13-7-20260723-1"></script>
+<script src="app.js?v=13-8-20260723-1"></script>
+<script src="dashboard.js?v=13-8-20260723-1"></script>
 </body>
 </html>
