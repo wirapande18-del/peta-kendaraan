@@ -169,3 +169,17 @@ body.view-settings #appLayout{display:block;height:calc(100vh - 77px);overflow:a
 .location-selected small{color:#667085}
 .location-actions{justify-content:flex-end;margin-top:10px}
 @media(max-width:600px){.location-mini-map{height:270px}.location-search-row{grid-template-columns:1fr}.location-search-row button{width:100%}}
+
+/* V13.6: daftar kendaraan saat angka cluster diklik */
+.cluster-modal-box{width:min(720px,94vw);max-height:92vh;overflow:auto}
+.cluster-search{margin:2px 0 10px}
+.cluster-vehicle-list{display:grid;gap:7px;max-height:54vh;overflow:auto;padding-right:3px}
+.cluster-vehicle-item{width:100%;display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:9px;align-items:start;text-align:left;background:#fff;color:#26364b;border:1px solid #dce4ec;padding:10px 11px;font-weight:400}
+.cluster-vehicle-item:hover{border-color:#087f82;background:#edfafa}
+.cluster-vehicle-item .cluster-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;background:var(--vehicle-color)}
+.cluster-vehicle-main{display:grid;gap:3px;min-width:0}.cluster-vehicle-main b{font-size:13px}.cluster-vehicle-main span{font-size:11px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cluster-vehicle-item>strong{font-size:10px;color:#087377;background:#e6f7f5;padding:4px 6px;border-radius:999px;white-space:nowrap}
+.cluster-pagination{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;margin-top:10px}.cluster-pagination span{text-align:center;font-size:11px;font-weight:700;color:#475569}.cluster-pagination button:disabled{opacity:.45;cursor:not-allowed}
+.cluster-actions{justify-content:flex-end;margin-top:12px}
+.cluster-empty{padding:24px;text-align:center;color:#667085;background:#f7f9fb;border-radius:10px}
+@media(max-width:600px){.cluster-vehicle-item{grid-template-columns:10px minmax(0,1fr)}.cluster-vehicle-item>strong{grid-column:2;justify-self:start}.cluster-pagination{grid-template-columns:1fr 1fr}.cluster-pagination span{grid-column:1/-1;grid-row:1}}

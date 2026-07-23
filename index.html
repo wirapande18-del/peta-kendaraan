@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-5-20260723-1" />
+  <link rel="stylesheet" href="style.css?v=13-6-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-5-20260723-1"></script>
-  <script src="data.js?v=13-5-20260723-1"></script>
+  <script src="storage.js?v=13-6-20260723-1"></script>
+  <script src="data.js?v=13-6-20260723-1"></script>
 </head>
 <body class="view-dashboard">
 <aside class="main-nav" id="mainNav">
@@ -32,7 +32,7 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
-    <span id="versionBadge" class="version-badge">Versi 13.5</span>
+    <span id="versionBadge" class="version-badge">Versi 13.6</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -159,6 +159,20 @@
       </div>
       <small id="manualHelp"></small>
     </div>
+  </div>
+</div>
+
+<div id="clusterModal" class="modal hidden">
+  <div class="modal-box cluster-modal-box">
+    <div class="modal-head"><div><h2>Daftar Kendaraan di Lokasi Ini</h2><small id="clusterSummary">0 kendaraan</small></div><button id="closeClusterBtn" class="icon-btn" type="button">×</button></div>
+    <input id="clusterSearchInput" class="cluster-search" placeholder="Cari plat, customer, SA, model, atau alamat...">
+    <div id="clusterVehicleList" class="cluster-vehicle-list"></div>
+    <div class="cluster-pagination">
+      <button id="clusterPrevBtn" class="secondary mini" type="button">‹ Sebelumnya</button>
+      <span id="clusterPageInfo">Halaman 1 / 1</span>
+      <button id="clusterNextBtn" class="secondary mini" type="button">Berikutnya ›</button>
+    </div>
+    <div class="row wrap cluster-actions"><button id="zoomClusterBtn" type="button">Perbesar Area</button><button id="cancelClusterBtn" class="secondary" type="button">Tutup</button></div>
   </div>
 </div>
 
@@ -292,7 +306,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-5-20260723-1"></script>
-<script src="dashboard.js?v=13-5-20260723-1"></script>
+<script src="app.js?v=13-6-20260723-1"></script>
+<script src="dashboard.js?v=13-6-20260723-1"></script>
 </body>
 </html>

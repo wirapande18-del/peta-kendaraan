@@ -1,4 +1,4 @@
-const APP_VERSION='13.5.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='13.6.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -191,7 +191,7 @@ let advisorColorMap={};
 if(typeof L==='undefined'){throw new Error('Leaflet gagal dimuat. Periksa koneksi internet lalu refresh halaman.');}
 const map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([-8.4095,115.1889],9);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors',crossOrigin:true}).addTo(map);
-const markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup({chunkedLoading:true,chunkInterval:120,chunkDelay:30,removeOutsideVisibleBounds:true,showCoverageOnHover:false,maxClusterRadius:55}):L.layerGroup().addTo(map);
+const markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup({chunkedLoading:true,chunkInterval:120,chunkDelay:30,removeOutsideVisibleBounds:true,showCoverageOnHover:false,maxClusterRadius:55,zoomToBoundsOnClick:false}):L.layerGroup().addTo(map);
 if(typeof markerLayer.addTo==='function'&&!map.hasLayer?.(markerLayer))markerLayer.addTo(map);
 let markerRenderVersion=0,markersDirty=true;
 
@@ -213,6 +213,30 @@ function renderMarkers(){
   const addChunk=deadline=>{if(version!==markerRenderVersion)return;const batch=[];let count=0;while(index<rows.length&&count<350&&(!deadline||deadline.timeRemaining()>2)){const v=rows[index++],m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).bindPopup(()=>popupHtml(v));m.vehicle=v;markers.push(m);batch.push(m);count++;}if(batch.length)markerLayer.addLayers?markerLayer.addLayers(batch):batch.forEach(m=>markerLayer.addLayer(m));if(index<rows.length){(window.requestIdleCallback||((fn)=>setTimeout(()=>fn({timeRemaining:()=>8}),0)))(addChunk);}else{if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});$('status').textContent=`${rows.length.toLocaleString('id-ID')} marker ditampilkan dalam kelompok.`;}};
   addChunk({timeRemaining:()=>8});
 }
+
+// ===== V13.6 Daftar kendaraan di dalam cluster =====
+let activeCluster=null,clusterMarkers=[],clusterFilteredMarkers=[],clusterPage=1;
+const CLUSTER_PAGE_SIZE=100;
+function clusterVehicleText(marker){const v=marker.vehicle||{};return [v.POLICE_NO,v.CUSTOMER,v.MODEL,v.SERVICE_ADVISOR,v.ADDRESS,v['NO RANGKA']].join(' ').toLocaleLowerCase('id-ID');}
+function renderClusterVehicles(){
+  const total=clusterFilteredMarkers.length,pages=Math.max(1,Math.ceil(total/CLUSTER_PAGE_SIZE));clusterPage=Math.max(1,Math.min(clusterPage,pages));const start=(clusterPage-1)*CLUSTER_PAGE_SIZE,visible=clusterFilteredMarkers.slice(start,start+CLUSTER_PAGE_SIZE);
+  $('clusterSummary').textContent=total===clusterMarkers.length?`${total.toLocaleString('id-ID')} kendaraan`:`${total.toLocaleString('id-ID')} dari ${clusterMarkers.length.toLocaleString('id-ID')} kendaraan`;
+  $('clusterVehicleList').innerHTML=visible.length?visible.map((marker,i)=>{const v=marker.vehicle||{},r=inferRegion(v);return `<button class="cluster-vehicle-item" data-i="${start+i}" type="button"><i class="cluster-dot" style="--vehicle-color:${advisorColor(v.SERVICE_ADVISOR)}"></i><span class="cluster-vehicle-main"><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b><span>${esc(v.CUSTOMER||'-')} · SA: ${esc(v.SERVICE_ADVISOR||'-')}</span><span>${esc(v.ADDRESS||'-')}</span></span><strong>${esc(r.district||'-')}</strong></button>`;}).join(''):'<div class="cluster-empty">Kendaraan tidak ditemukan.</div>';
+  $('clusterVehicleList').querySelectorAll('.cluster-vehicle-item').forEach(el=>el.onclick=()=>openVehicleFromCluster(clusterFilteredMarkers[Number(el.dataset.i)]));
+  $('clusterPageInfo').textContent=`Halaman ${clusterPage} / ${pages}`;$('clusterPrevBtn').disabled=clusterPage<=1;$('clusterNextBtn').disabled=clusterPage>=pages;
+}
+function openClusterVehicles(cluster){
+  if(!cluster||typeof cluster.getAllChildMarkers!=='function')return;activeCluster=cluster;clusterMarkers=cluster.getAllChildMarkers().filter(m=>m.vehicle).sort((a,b)=>String(a.vehicle.POLICE_NO||'').localeCompare(String(b.vehicle.POLICE_NO||''),'id'));clusterFilteredMarkers=[...clusterMarkers];clusterPage=1;$('clusterSearchInput').value='';renderClusterVehicles();$('clusterModal').classList.remove('hidden');
+}
+function closeClusterVehicles(){$('clusterModal').classList.add('hidden');activeCluster=null;clusterMarkers=[];clusterFilteredMarkers=[];clusterPage=1;}
+function openVehicleFromCluster(marker){
+  if(!marker||!marker.vehicle)return;const v=marker.vehicle;closeClusterVehicles();map.setView([Number(v.lat),Number(v.lng)],Math.max(18,map.getZoom()));setTimeout(()=>{if(typeof markerLayer.zoomToShowLayer==='function')markerLayer.zoomToShowLayer(marker,()=>marker.openPopup());else marker.openPopup();},120);
+}
+if(typeof markerLayer.on==='function'&&typeof L.markerClusterGroup==='function')markerLayer.on('clusterclick',e=>{if(e.originalEvent)L.DomEvent.stop(e.originalEvent);openClusterVehicles(e.layer);});
+$('clusterSearchInput').oninput=()=>{const q=$('clusterSearchInput').value.trim().toLocaleLowerCase('id-ID');clusterFilteredMarkers=q?clusterMarkers.filter(m=>clusterVehicleText(m).includes(q)):[...clusterMarkers];clusterPage=1;renderClusterVehicles();};
+$('clusterPrevBtn').onclick=()=>{if(clusterPage>1){clusterPage--;renderClusterVehicles();}};$('clusterNextBtn').onclick=()=>{const pages=Math.ceil(clusterFilteredMarkers.length/CLUSTER_PAGE_SIZE);if(clusterPage<pages){clusterPage++;renderClusterVehicles();}};
+$('zoomClusterBtn').onclick=()=>{if(!activeCluster)return closeClusterVehicles();const bounds=activeCluster.getBounds?.();closeClusterVehicles();if(bounds?.isValid?.())map.fitBounds(bounds,{padding:[35,35],maxZoom:18});};
+$('closeClusterBtn').onclick=closeClusterVehicles;$('cancelClusterBtn').onclick=closeClusterVehicles;$('clusterModal').onclick=e=>{if(e.target===$('clusterModal'))closeClusterVehicles();};
 let listPage=1;
 function renderList(){const list=$('vehicleList'),size=Number($('listPageSize')?.value||100),pages=Math.max(1,Math.ceil(filteredVehicles.length/size));listPage=Math.min(Math.max(1,listPage),pages);const start=(listPage-1)*size,visible=filteredVehicles.slice(start,start+size);list.innerHTML=visible.map(v=>{const key=normalizePlate(v.POLICE_NO),status=currentFollowUpStatus(v),unknown=v._district==='Belum diketahui',phone=getPhone(v);return `<div class="vehicle-item"><input class="vehicle-check" type="checkbox" data-key="${esc(key)}" ${selectedFollowUps.has(key)?'checked':''}><div class="vehicle-content" data-plate="${esc(key)}"><div class="vehicle-title"><span class="legend-dot" style="background:${advisorColor(v.SERVICE_ADVISOR)}"></span><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b></div><span>${esc(v.CUSTOMER||'-')}</span><span>SA: ${esc(advisorName(v.SERVICE_ADVISOR)||'-')}</span><span>${esc(v.ADDRESS||'-')}</span><div class="region-row"><span class="region-badge regency">${esc(v._regency)}</span><span class="region-badge ${unknown?'unknown':''}">${esc(v._district)}</span><span class="status-badge status-${esc(status)}">${esc(followUpStatusLabel(status))}</span></div>${v.GEOCODE_PRECISION?`<span>Ketepatan: ${esc(v.GEOCODE_PRECISION)}</span>`:''}<div class="vehicle-follow-actions">${phone?`<button type="button" class="vehicle-wa-btn" data-wa="${esc(key)}">WhatsApp</button>`:''}<button type="button" class="vehicle-reason-btn" data-follow="${esc(key)}">Ubah Status</button></div></div></div>`}).join('')||'<small>Tidak ada data.</small>';list.querySelectorAll('.vehicle-content').forEach(el=>el.onclick=e=>{if(e.target.closest('button'))return;document.body.classList.contains('view-followup')?window.openFollowUp(el.dataset.plate):focusVehicle(el.dataset.plate);});list.querySelectorAll('.vehicle-wa-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openSingleWa(el.dataset.wa);});list.querySelectorAll('.vehicle-reason-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openFollowUp(el.dataset.follow);});list.querySelectorAll('.vehicle-check').forEach(el=>el.onchange=()=>{el.checked?selectedFollowUps.add(el.dataset.key):selectedFollowUps.delete(el.dataset.key);updateSelectionUi();});$('listPageInfo').textContent=`Halaman ${listPage} / ${pages} · ${filteredVehicles.length.toLocaleString('id-ID')} data`;$('listPrevBtn').disabled=listPage<=1;$('listNextBtn').disabled=listPage>=pages;updateSelectionUi();}
 function focusVehicle(key){const v=vehicles.find(x=>normalizePlate(x.POLICE_NO)===key);if(!v)return;if(!Number.isFinite(v.lat))return openAddressEditor(v);map.setView([v.lat,v.lng],16);const m=markers.find(x=>x.vehicle===v);if(m){if(typeof markerLayer.zoomToShowLayer==='function')markerLayer.zoomToShowLayer(m,()=>m.openPopup());else m.openPopup();}}
