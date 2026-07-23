@@ -8,10 +8,11 @@
     settings:['Pengaturan','Kelola template WhatsApp dan pengaturan aplikasi']
   };
   const statusMeta=[
-    ['TERKIRIM','Sudah Terkirim','#2fb25b','Pesan WhatsApp berhasil dikirim'],
-    ['BELUM_DIBACA','Belum Dibaca','#ffb000','Pesan terkirim namun belum dibaca'],
-    ['DIBACA','Sudah Dibaca','#8bcf59','Pesan sudah dibaca customer'],
-    ['DIBALAS','Sudah Dibalas','#15954a','Customer sudah membalas pesan'],
+    ['TERKIRIM','WA Dibuka (Otomatis)','#2fb25b','WhatsApp dibuka dari aplikasi; belum memastikan pesan dikirim','WA Dibuka'],
+    ['CENTANG_SATU','Centang Satu','#f59e0b','Pesan sudah dikirim tetapi baru centang satu','Centang 1'],
+    ['BELUM_DIBACA','Centang Dua - Belum Dibaca','#ffb000','Pesan centang dua tetapi belum dibaca','Belum Dibaca'],
+    ['DIBACA','Dibaca - Tidak Dibalas','#8bcf59','Pesan sudah dibaca tetapi belum dibalas','Tidak Dibalas'],
+    ['DIBALAS','Sudah Dibalas','#15954a','Customer sudah membalas pesan','Dibalas'],
     ['NOMOR_TIDAK_AKTIF','Nomor Tidak Aktif','#ef2929','Nomor WhatsApp tidak aktif'],
     ['TIDAK_ADA_WHATSAPP','Tidak Ada WhatsApp','#ed4b62','Customer tidak memiliki WhatsApp'],
     ['BOOKING','Booking','#9138d1','Customer sudah booking service'],
@@ -90,7 +91,7 @@
     $('dashTotal').textContent=total;$('dashFollowed').textContent=followed;$('dashPending').textContent=pending;$('dashAchievement').textContent=formatPercent(p);$('dashFollowedHint').textContent=`${formatPercent(p)} dari total customer`;$('dashPendingHint').textContent=`${formatPercent(percent(pending,total))} dari total customer`;
     $('achievementRing').style.setProperty('--p',p);$('achievementRing').querySelector('b').textContent=formatPercent(p);$('followUpDonut').style.setProperty('--p',p);$('donutPercent').textContent=formatPercent(p);
     $('donutLegend').innerHTML=`<div class="legend-line"><i style="background:#2db45d"></i><span>Sudah Follow Up <b>${followed} (${formatPercent(p)})</b></span></div><div class="legend-line"><i style="background:#ff8218"></i><span>Belum Follow Up <b>${pending} (${formatPercent(percent(pending,total))})</b></span></div>`;
-    const statusRows=statusMeta.map(([key,label,color,description])=>({key,label,color,description,count:rows.filter(v=>currentFollowUpStatus(v)===key).length,short:label.replace('Sudah ','').replace('Tidak Ada ','Tanpa ')}));statusRows.pending=pending;renderStatusChart(statusRows,total);renderAdvisorChart(rows);renderTrend(rows);
+    const statusRows=statusMeta.map(([key,label,color,description,short])=>({key,label,color,description,count:rows.filter(v=>currentFollowUpStatus(v)===key).length,short:short||label.replace('Sudah ','').replace('Tidak Ada ','Tanpa ')}));statusRows.pending=pending;renderStatusChart(statusRows,total);renderAdvisorChart(rows);renderTrend(rows);
     $('dashboardUpdated').textContent=`Data diperbarui terakhir: ${new Date().toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'})}`;
   }
   window.renderDashboard=renderDashboard;

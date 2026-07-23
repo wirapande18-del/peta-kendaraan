@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-6-20260723-1" />
+  <link rel="stylesheet" href="style.css?v=13-7-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-6-20260723-1"></script>
-  <script src="data.js?v=13-6-20260723-1"></script>
+  <script src="storage.js?v=13-7-20260723-1"></script>
+  <script src="data.js?v=13-7-20260723-1"></script>
 </head>
 <body class="view-dashboard">
 <aside class="main-nav" id="mainNav">
@@ -32,7 +32,7 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
-    <span id="versionBadge" class="version-badge">Versi 13.6</span>
+    <span id="versionBadge" class="version-badge">Versi 13.7</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -99,7 +99,7 @@
         <select id="regencyFilter"><option value="">Semua Kabupaten/Kota</option></select>
         <select id="districtFilter"><option value="">Semua Kecamatan</option></select>
         <select id="followUpStatusFilter">
-          <option value="">Semua Status Follow Up</option><option value="BELUM">Belum Follow Up</option><option value="TERKIRIM">Sudah Terkirim</option><option value="BELUM_DIBACA">Belum Dibaca</option><option value="DIBACA">Sudah Dibaca</option><option value="DIBALAS">Sudah Dibalas</option><option value="NOMOR_TIDAK_AKTIF">Nomor Tidak Aktif</option><option value="TIDAK_ADA_WHATSAPP">Tidak Ada WhatsApp</option><option value="BOOKING">Booking</option><option value="FOLLOW_UP_ULANG">Follow Up Ulang</option><option value="SELESAI">Selesai</option>
+          <option value="">Semua Status Follow Up</option><option value="BELUM">Belum Follow Up</option><option value="TERKIRIM">WA Dibuka (Otomatis)</option><option value="CENTANG_SATU">Centang Satu</option><option value="BELUM_DIBACA">Centang Dua - Belum Dibaca</option><option value="DIBACA">Dibaca - Tidak Dibalas</option><option value="DIBALAS">Sudah Dibalas</option><option value="NOMOR_TIDAK_AKTIF">Nomor Tidak Aktif</option><option value="TIDAK_ADA_WHATSAPP">Tidak Ada WhatsApp</option><option value="BOOKING">Booking</option><option value="FOLLOW_UP_ULANG">Follow Up Ulang</option><option value="SELESAI">Selesai</option>
         </select>
         <button id="showAllBtn" class="secondary full">Tampilkan semua</button>
       </div>
@@ -207,16 +207,27 @@
 <div id="followUpModal" class="modal hidden">
   <div class="modal-box follow-up-modal-box">
     <div class="modal-head">
-      <div><h2>Reason Follow Up</h2><small id="followUpVehicleInfo">-</small></div>
+      <div><h2>Input Status WhatsApp &amp; Follow Up</h2><small id="followUpVehicleInfo">-</small></div>
       <button id="closeFollowUpBtn" class="icon-btn" type="button">×</button>
     </div>
+    <div class="quick-wa-status follow-up-full">
+      <b>Pilih status WhatsApp secara manual</b>
+      <small>Sesuaikan dengan tanda yang terlihat pada WhatsApp.</small>
+      <div class="quick-wa-buttons">
+        <button type="button" data-wa-status="CENTANG_SATU" data-wa-reason="PESAN_CENTANG_SATU">✓ Centang Satu</button>
+        <button type="button" data-wa-status="BELUM_DIBACA" data-wa-reason="PESAN_CENTANG_DUA">✓✓ Belum Dibaca</button>
+        <button type="button" data-wa-status="DIBACA" data-wa-reason="DIBACA_TIDAK_DIBALAS">✓✓ Dibaca, Tidak Dibalas</button>
+        <button type="button" data-wa-status="DIBALAS" data-wa-reason="CUSTOMER_MEMBALAS">💬 Sudah Dibalas</button>
+      </div>
+    </div>
     <div class="follow-up-grid">
-      <label>Status Follow Up
+      <label>Status WhatsApp / Follow Up
         <select id="followUpStatus">
           <option value="BELUM">Belum Follow Up</option>
-          <option value="TERKIRIM">Sudah Terkirim</option>
-          <option value="BELUM_DIBACA">Belum Dibaca</option>
-          <option value="DIBACA">Sudah Dibaca</option>
+          <option value="TERKIRIM">WA Dibuka (Otomatis)</option>
+          <option value="CENTANG_SATU">Centang Satu</option>
+          <option value="BELUM_DIBACA">Centang Dua - Belum Dibaca</option>
+          <option value="DIBACA">Dibaca - Tidak Dibalas</option>
           <option value="DIBALAS">Sudah Dibalas</option>
           <option value="NOMOR_TIDAK_AKTIF">Nomor Tidak Aktif</option>
           <option value="TIDAK_ADA_WHATSAPP">Tidak Ada WhatsApp</option>
@@ -231,6 +242,10 @@
         <select id="followUpReason">
           <option value="">Pilih reason</option>
           <option value="REMINDER_SERVICE">Reminder service berkala</option>
+          <option value="PESAN_CENTANG_SATU">Pesan centang satu</option>
+          <option value="PESAN_CENTANG_DUA">Pesan centang dua tetapi belum dibaca</option>
+          <option value="DIBACA_TIDAK_DIBALAS">Pesan dibaca tetapi tidak dibalas</option>
+          <option value="CUSTOMER_MEMBALAS">Customer membalas pesan</option>
           <option value="CUSTOMER_SIBUK">Customer sedang sibuk</option>
           <option value="TIDAK_DIANGKAT">Telepon tidak diangkat</option>
           <option value="NOMOR_TIDAK_AKTIF">Nomor tidak aktif</option>
@@ -306,7 +321,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-6-20260723-1"></script>
-<script src="dashboard.js?v=13-6-20260723-1"></script>
+<script src="app.js?v=13-7-20260723-1"></script>
+<script src="dashboard.js?v=13-7-20260723-1"></script>
 </body>
 </html>
