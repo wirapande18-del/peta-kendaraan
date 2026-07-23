@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-2-validasi-wilayah" />
+  <link rel="stylesheet" href="style.css?v=13-3-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-2-validasi-wilayah"></script>
-  <script src="data.js?v=12-smart-excel"></script>
+  <script src="storage.js?v=13-3-20260723-1"></script>
+  <script src="data.js?v=13-3-20260723-1"></script>
 </head>
 <body class="view-dashboard">
 <aside class="main-nav" id="mainNav">
@@ -32,6 +32,7 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
+    <span id="versionBadge" class="version-badge">Versi 13.3</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -84,6 +85,7 @@
         <button id="restoreDefaultBtn" class="secondary" title="Pulihkan data awal"><span>Pulihkan data awal</span></button>
         <button id="showFailedBtn" class="warning" title="Lihat alamat gagal"><span>Lihat alamat gagal</span></button>
         <button id="analyzeAddressBtn" class="success" title="Analisa dan perbaiki Excel"><span>Analisa & perbaiki Excel</span></button>
+        <button id="auditCoordinatesBtn" class="warning" title="Periksa titik di luar wilayah"><span>Periksa Titik Salah</span></button>
         <button id="downloadFollowUpBtn" class="follow-up-download" title="Download Follow Up"><span>Download Follow Up</span></button>
       </div>
       <small class="section-label">Setelah upload, angka “Belum diproses” adalah alamat yang belum dicari—bukan gagal.</small>
@@ -275,7 +277,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-2-validasi-wilayah"></script>
-<script src="dashboard.js?v=13-2-validasi-wilayah"></script>
+<script src="app.js?v=13-3-20260723-1"></script>
+<script src="dashboard.js?v=13-3-20260723-1"></script>
 </body>
 </html>
