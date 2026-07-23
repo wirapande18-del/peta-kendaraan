@@ -31,9 +31,23 @@ vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_
 let followUps=readJSON(FOLLOW_UP_KEY,{}),activeFollowUpVehicle=null,selectedFollowUps=new Set(),batchQueue=[],batchIndex=0;
 let geoCache=readJSON(GEO_KEY,null)||readJSON('vehicleMapGeocodeCacheV3',{})||{},filteredVehicles=[],stopRequested=false,markers=[],editingVehicle=null,manualMode=false,manualPreview=null;
 const safeStore=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true;}catch(err){console.warn('Penyimpanan lokal gagal:',err);const status=document.getElementById('status');if(status)status.textContent='Penyimpanan HP penuh/terblokir. Peta tetap dapat digunakan.';return false;}};
-const saveData=()=>safeStore(DATA_KEY,vehicles);
-const saveGeo=()=>safeStore(GEO_KEY,geoCache);
-const saveFollowUps=()=>safeStore(FOLLOW_UP_KEY,followUps);
+async function saveLarge(key,value){try{if(!window.BigStore)throw new Error('Penyimpanan data besar tidak tersedia');await BigStore.set(key,value);return true;}catch(err){console.warn('IndexedDB gagal:',err);$('status').textContent='Penyimpanan data besar gagal. Periksa izin penyimpanan browser.';return false;}}
+const saveData=()=>saveLarge('vehicles',vehicles);
+const saveGeo=()=>saveLarge('geoCache',geoCache);
+const saveFollowUps=()=>{const text=JSON.stringify(followUps);if(text.length<1500000)safeStore(FOLLOW_UP_KEY,followUps);return saveLarge('followUps',followUps);};
+async function loadLargeStoreData(){
+  if(!window.BigStore)return;
+  try{
+    const [savedVehicles,savedGeo,savedFollowUps]=await Promise.all([BigStore.get('vehicles'),BigStore.get('geoCache'),BigStore.get('followUps')]);
+    if(Array.isArray(savedVehicles))vehicles=savedVehicles;else if(await saveData()){localStorage.removeItem(DATA_KEY);localStorage.removeItem('vehicleMapDataV3');}
+    if(savedGeo&&typeof savedGeo==='object')geoCache=savedGeo;else if(await saveGeo()){localStorage.removeItem(GEO_KEY);localStorage.removeItem('vehicleMapGeocodeCacheV3');}
+    if(savedFollowUps&&typeof savedFollowUps==='object')followUps=savedFollowUps;else await saveFollowUps();
+    vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_CP?{...v,TELEPHONE_CP:phone}:v;});
+    hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
+    navigator.storage?.persist?.().catch(()=>{});const estimate=await BigStore.estimate().catch(()=>({})),used=estimate.usage?Math.round(estimate.usage/1048576):0,quota=estimate.quota?Math.round(estimate.quota/1048576):0;
+    $('status').textContent=`${vehicles.length.toLocaleString('id-ID')} data siap${quota?` · Penyimpanan ${used} MB dari ${quota} MB`:''}`;
+  }catch(err){console.warn(err);$('status').textContent='Penyimpanan besar tidak dapat dibuka. Data bawaan tetap ditampilkan.';}
+}
 const followUpKey=v=>normalizePlate(v&&v.POLICE_NO);
 const followUpStatusLabel=s=>({BELUM:'Belum Follow Up',SUDAH:'Sudah Follow Up',TERKIRIM:'Sudah Terkirim',BELUM_DIBACA:'Belum Dibaca',DIBACA:'Sudah Dibaca',DIBALAS:'Sudah Dibalas',NOMOR_TIDAK_AKTIF:'Nomor Tidak Aktif',TIDAK_ADA_WHATSAPP:'Tidak Ada WhatsApp',BOOKING:'Booking',TIDAK_TERHUBUNG:'Tidak Terhubung',FOLLOW_UP_ULANG:'Follow Up Ulang',SELESAI:'Selesai'}[s]||s||'Belum Follow Up');
 const followUpReasonLabel=s=>({REMINDER_SERVICE:'Reminder service berkala',CUSTOMER_SIBUK:'Customer sedang sibuk',TIDAK_DIANGKAT:'Telepon tidak diangkat',NOMOR_TIDAK_AKTIF:'Nomor tidak aktif',TIDAK_ADA_WHATSAPP:'Nomor tidak ada WhatsApp',SUDAH_SERVICE:'Sudah melakukan service',SERVICE_DI_TEMPAT_LAIN:'Service di tempat lain',KENDARAAN_DIJUAL:'Kendaraan sudah dijual',PINDAH_DOMISILI:'Customer pindah domisili',MENUNGGU_KONFIRMASI:'Menunggu konfirmasi customer',JANJI_SERVICE:'Customer janji datang service',BELUM_BERSEDIA:'Customer belum bersedia service',LAINNYA:'Lainnya'}[s]||s||'-');
@@ -141,6 +155,9 @@ let advisorColorMap={};
 if(typeof L==='undefined'){throw new Error('Leaflet gagal dimuat. Periksa koneksi internet lalu refresh halaman.');}
 const map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([-8.4095,115.1889],9);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors',crossOrigin:true}).addTo(map);
+const markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup({chunkedLoading:true,chunkInterval:120,chunkDelay:30,removeOutsideVisibleBounds:true,showCoverageOnHover:false,maxClusterRadius:55}):L.layerGroup().addTo(map);
+if(typeof markerLayer.addTo==='function'&&!map.hasLayer?.(markerLayer))markerLayer.addTo(map);
+let markerRenderVersion=0,markersDirty=true;
 
 function hydrateCoordinates(){vehicles.forEach(v=>{const c=geoCache[cacheKey(v.ADDRESS)];if(c){v.lat=Number(c.lat);v.lng=Number(c.lng);v.geocodeFailed=false;}});}
 function updateStats(){const mapped=vehicles.filter(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng)).length;const failed=vehicles.filter(v=>v.geocodeFailed===true).length;const pending=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)&&v.geocodeFailed!==true).length;$('totalData').textContent=vehicles.length;$('mappedData').textContent=mapped;$('pendingData').textContent=pending;$('failedData').textContent=failed;}
@@ -149,10 +166,18 @@ const advisorColor=name=>advisorColorMap[advisorKey(name)]||'#64748b';
 function markerIcon(name){const color=advisorColor(name);return L.divIcon({className:'advisor-marker-wrap',html:`<div class="advisor-marker" style="--marker-color:${color}"><span></span></div>`,iconSize:[34,44],iconAnchor:[17,43],popupAnchor:[0,-40]});}
 function renderLegend(names){$('advisorLegend').innerHTML=names.length?names.map(n=>`<div class="legend-item"><span class="legend-dot" style="background:${advisorColor(n)}"></span><span>${esc(n)}</span></div>`).join(''):'<small>Belum ada data Service Advisor.</small>';}
 function popupHtml(v){const phone=getPhone(v),q=encodeURIComponent(`${v.lat||''},${v.lng||''}`),key=esc(followUpKey(v)),r=inferRegion(v);return `<div class="popup"><h3>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</h3><div class="popup-grid"><b>Customer</b><span>${esc(v.CUSTOMER||'-')}</span><b>Tahun/VIN</b><span>${esc(v.VIN||'-')}</span><b>No. Rangka</b><span>${esc(v['NO RANGKA']||v.NO_RANGKA||'-')}</span><b>KM</b><span>${esc(v.KM||'-')}</span><b>Last Service</b><span>${esc(v['LAST SERVICE']||v.LAST_SERVICE_DATE||'-')}</span><b>Advisor</b><span>${esc(v.SERVICE_ADVISOR||'-')}</span><b>Kontak</b><span>${esc(v.contact_person||'-')}</span><b>Telepon</b><span>${esc(getPhoneRaw(v)||'-')}</span><b>Alamat</b><span>${esc(v.ADDRESS||'-')}</span><b>Kabupaten</b><span>${esc(r.regency)}</span><b>Kecamatan</b><span>${esc(r.district)}</span>${v.GEOCODE_PRECISION?`<b>Ketepatan</b><span>${esc(v.GEOCODE_PRECISION)}</span>`:''}</div>${followUpPopupHtml(v)}<div class="popup-actions">${phone?`<button class="wa mini" onclick="openSingleWa('${key}')">WhatsApp</button>`:''}<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${q}">Buka Google Maps</a><button class="follow-up-popup-btn mini" onclick="openFollowUp('${key}')">Reason Follow Up</button><button class="danger mini" onclick="deleteOne('${esc(normalizePlate(v.POLICE_NO))}')">Hapus</button></div></div>`;}
-function renderMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];const bounds=[];filteredVehicles.forEach(v=>{if(!Number.isFinite(v.lat)||!Number.isFinite(v.lng))return;const m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).addTo(map).bindPopup(popupHtml(v));m.vehicle=v;markers.push(m);bounds.push([v.lat,v.lng]);});if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});}
-function renderList(){const list=$('vehicleList');list.innerHTML=filteredVehicles.slice(0,400).map(v=>{const key=normalizePlate(v.POLICE_NO),status=currentFollowUpStatus(v),unknown=v._district==='Belum diketahui',phone=getPhone(v);return `<div class="vehicle-item"><input class="vehicle-check" type="checkbox" data-key="${esc(key)}" ${selectedFollowUps.has(key)?'checked':''}><div class="vehicle-content" data-plate="${esc(key)}"><div class="vehicle-title"><span class="legend-dot" style="background:${advisorColor(v.SERVICE_ADVISOR)}"></span><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b></div><span>${esc(v.CUSTOMER||'-')}</span><span>SA: ${esc(advisorName(v.SERVICE_ADVISOR)||'-')}</span><span>${esc(v.ADDRESS||'-')}</span><div class="region-row"><span class="region-badge regency">${esc(v._regency)}</span><span class="region-badge ${unknown?'unknown':''}">${esc(v._district)}</span><span class="status-badge status-${esc(status)}">${esc(followUpStatusLabel(status))}</span></div>${v.GEOCODE_PRECISION?`<span>Ketepatan: ${esc(v.GEOCODE_PRECISION)}</span>`:''}<div class="vehicle-follow-actions">${phone?`<button type="button" class="vehicle-wa-btn" data-wa="${esc(key)}">WhatsApp</button>`:''}<button type="button" class="vehicle-reason-btn" data-follow="${esc(key)}">Ubah Status</button></div></div></div>`}).join('')||'<small>Tidak ada data.</small>';list.querySelectorAll('.vehicle-content').forEach(el=>el.onclick=e=>{if(e.target.closest('button'))return;document.body.classList.contains('view-followup')?window.openFollowUp(el.dataset.plate):focusVehicle(el.dataset.plate);});list.querySelectorAll('.vehicle-wa-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openSingleWa(el.dataset.wa);});list.querySelectorAll('.vehicle-reason-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openFollowUp(el.dataset.follow);});list.querySelectorAll('.vehicle-check').forEach(el=>el.onchange=()=>{el.checked?selectedFollowUps.add(el.dataset.key):selectedFollowUps.delete(el.dataset.key);updateSelectionUi();});updateSelectionUi();}
-function focusVehicle(key){const v=vehicles.find(x=>normalizePlate(x.POLICE_NO)===key);if(!v)return;if(!Number.isFinite(v.lat))return openAddressEditor(v);map.setView([v.lat,v.lng],16);const m=markers.find(x=>x.vehicle===v);if(m)m.openPopup();}
-function applyFilter(){enrichRegions();const q=$('searchInput').value.trim().toLowerCase(),adv=$('advisorFilter').value,reg=$('regencyFilter')?.value||'',dist=$('districtFilter')?.value||'',fu=$('followUpStatusFilter')?.value||'';filteredVehicles=vehicles.filter(v=>(!q||Object.values(v).join(' ').toLowerCase().includes(q))&&(!adv||advisorKey(v.SERVICE_ADVISOR)===advisorKey(adv))&&(!reg||v._regency===reg)&&(!dist||v._district===dist)&&(!fu||currentFollowUpStatus(v)===fu));renderList();renderMarkers();updateStats();window.renderDashboard?.();}
+function renderMarkers(){
+  markersDirty=false;const version=++markerRenderVersion;markerLayer.clearLayers();markers=[];
+  const rows=filteredVehicles.filter(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng)),bounds=rows.map(v=>[v.lat,v.lng]);let index=0;
+  const addChunk=deadline=>{if(version!==markerRenderVersion)return;const batch=[];let count=0;while(index<rows.length&&count<350&&(!deadline||deadline.timeRemaining()>2)){const v=rows[index++],m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).bindPopup(popupHtml(v));m.vehicle=v;markers.push(m);batch.push(m);count++;}if(batch.length)markerLayer.addLayers?markerLayer.addLayers(batch):batch.forEach(m=>markerLayer.addLayer(m));if(index<rows.length){(window.requestIdleCallback||((fn)=>setTimeout(()=>fn({timeRemaining:()=>8}),0)))(addChunk);}else{if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});$('status').textContent=`${rows.length.toLocaleString('id-ID')} marker ditampilkan dalam kelompok.`;}};
+  addChunk({timeRemaining:()=>8});
+}
+let listPage=1;
+function renderList(){const list=$('vehicleList'),size=Number($('listPageSize')?.value||100),pages=Math.max(1,Math.ceil(filteredVehicles.length/size));listPage=Math.min(Math.max(1,listPage),pages);const start=(listPage-1)*size,visible=filteredVehicles.slice(start,start+size);list.innerHTML=visible.map(v=>{const key=normalizePlate(v.POLICE_NO),status=currentFollowUpStatus(v),unknown=v._district==='Belum diketahui',phone=getPhone(v);return `<div class="vehicle-item"><input class="vehicle-check" type="checkbox" data-key="${esc(key)}" ${selectedFollowUps.has(key)?'checked':''}><div class="vehicle-content" data-plate="${esc(key)}"><div class="vehicle-title"><span class="legend-dot" style="background:${advisorColor(v.SERVICE_ADVISOR)}"></span><b>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</b></div><span>${esc(v.CUSTOMER||'-')}</span><span>SA: ${esc(advisorName(v.SERVICE_ADVISOR)||'-')}</span><span>${esc(v.ADDRESS||'-')}</span><div class="region-row"><span class="region-badge regency">${esc(v._regency)}</span><span class="region-badge ${unknown?'unknown':''}">${esc(v._district)}</span><span class="status-badge status-${esc(status)}">${esc(followUpStatusLabel(status))}</span></div>${v.GEOCODE_PRECISION?`<span>Ketepatan: ${esc(v.GEOCODE_PRECISION)}</span>`:''}<div class="vehicle-follow-actions">${phone?`<button type="button" class="vehicle-wa-btn" data-wa="${esc(key)}">WhatsApp</button>`:''}<button type="button" class="vehicle-reason-btn" data-follow="${esc(key)}">Ubah Status</button></div></div></div>`}).join('')||'<small>Tidak ada data.</small>';list.querySelectorAll('.vehicle-content').forEach(el=>el.onclick=e=>{if(e.target.closest('button'))return;document.body.classList.contains('view-followup')?window.openFollowUp(el.dataset.plate):focusVehicle(el.dataset.plate);});list.querySelectorAll('.vehicle-wa-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openSingleWa(el.dataset.wa);});list.querySelectorAll('.vehicle-reason-btn').forEach(el=>el.onclick=e=>{e.stopPropagation();window.openFollowUp(el.dataset.follow);});list.querySelectorAll('.vehicle-check').forEach(el=>el.onchange=()=>{el.checked?selectedFollowUps.add(el.dataset.key):selectedFollowUps.delete(el.dataset.key);updateSelectionUi();});$('listPageInfo').textContent=`Halaman ${listPage} / ${pages} · ${filteredVehicles.length.toLocaleString('id-ID')} data`;$('listPrevBtn').disabled=listPage<=1;$('listNextBtn').disabled=listPage>=pages;updateSelectionUi();}
+function focusVehicle(key){const v=vehicles.find(x=>normalizePlate(x.POLICE_NO)===key);if(!v)return;if(!Number.isFinite(v.lat))return openAddressEditor(v);map.setView([v.lat,v.lng],16);const m=markers.find(x=>x.vehicle===v);if(m){if(typeof markerLayer.zoomToShowLayer==='function')markerLayer.zoomToShowLayer(m,()=>m.openPopup());else m.openPopup();}}
+let searchIndexCache=new WeakMap();
+const searchText=v=>{let text=searchIndexCache.get(v);if(!text){text=[v.POLICE_NO,v.CUSTOMER,v.MODEL,v.SERVICE_ADVISOR,v.ADDRESS,v['NO RANGKA'],v.VIN,getPhoneRaw(v)].join(' ').toLocaleLowerCase('id-ID');searchIndexCache.set(v,text);}return text;};
+function applyFilter(resetPage=true){enrichRegions();const q=$('searchInput').value.trim().toLocaleLowerCase('id-ID'),adv=$('advisorFilter').value,reg=$('regencyFilter')?.value||'',dist=$('districtFilter')?.value||'',fu=$('followUpStatusFilter')?.value||'';filteredVehicles=vehicles.filter(v=>(!q||searchText(v).includes(q))&&(!adv||advisorKey(v.SERVICE_ADVISOR)===advisorKey(adv))&&(!reg||v._regency===reg)&&(!dist||v._district===dist)&&(!fu||currentFollowUpStatus(v)===fu));if(resetPage)listPage=1;renderList();markersDirty=true;if(document.body.classList.contains('view-map'))renderMarkers();updateStats();window.renderDashboard?.();}
 // ===== Smart import Excel: posisi kolom bebas, kolom tambahan diabaikan =====
 const IMPORT_FIELDS=['POLICE_NO','CUSTOMER','MODEL','VIN','KM','LAST SERVICE','NO RANGKA','SERVICE_ADVISOR','contact_person','TELEPHONE_CP','ADDRESS'];
 const HEADER_ALIASES={
@@ -193,26 +218,31 @@ function mergeVehicle(oldRow,newRow){
   return merged;
 }
 async function importFile(file){
+  $('status').textContent='Membaca file dan menyiapkan data besar...';await sleep(20);
   const buf=await file.arrayBuffer();
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rawRows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'dd/mm/yyyy'});
   const rows=rawRows.map(normalizeRow).filter(row=>IMPORT_FIELDS.some(field=>hasValue(row[field])));
+  const frameIndex=new Map(),plateIndex=new Map();
+  vehicles.forEach((v,i)=>{const frame=normalizeFrame(v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO),plate=normalizePlate(v.POLICE_NO);if(frame&&!frameIndex.has(frame))frameIndex.set(frame,i);if(plate&&!plateIndex.has(plate))plateIndex.set(plate,i);});
   let added=0,updated=0,unchanged=0;
-  for(const row of rows){
+  for(let rowNumber=0;rowNumber<rows.length;rowNumber++){
+    const row=rows[rowNumber];row.SERVICE_ADVISOR=advisorName(row.SERVICE_ADVISOR);
     const plateKey=normalizePlate(row.POLICE_NO),frameKey=normalizeFrame(row['NO RANGKA']);
     let index=-1;
-    if(frameKey)index=vehicles.findIndex(v=>normalizeFrame(v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO)===frameKey);
-    if(index<0&&plateKey)index=vehicles.findIndex(v=>normalizePlate(v.POLICE_NO)===plateKey);
+    if(frameKey&&frameIndex.has(frameKey))index=frameIndex.get(frameKey);
+    if(index<0&&plateKey&&plateIndex.has(plateKey))index=plateIndex.get(plateKey);
     if(index>=0){
       const before=JSON.stringify(vehicles[index]);
       vehicles[index]=mergeVehicle(vehicles[index],row);
       JSON.stringify(vehicles[index])===before?unchanged++:updated++;
     }else{
-      vehicles.push({...Object.fromEntries(IMPORT_FIELDS.map(field=>[field,''])),...row});added++;
+      index=vehicles.length;vehicles.push({...Object.fromEntries(IMPORT_FIELDS.map(field=>[field,''])),...row});if(frameKey)frameIndex.set(frameKey,index);if(plateKey)plateIndex.set(plateKey,index);added++;
     }
+    if((rowNumber+1)%1000===0){$('status').textContent=`Memproses ${(rowNumber+1).toLocaleString('id-ID')} / ${rows.length.toLocaleString('id-ID')} data...`;await sleep(0);}
   }
-  saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
+  searchIndexCache=new WeakMap();await saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
   $('status').textContent=`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama. Kolom tambahan diabaikan.`;
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -236,9 +266,23 @@ async function processVehicle(v){
   const r=await geocodeAddress(original);
   if(!r){v.geocodeFailed=true;v.GEOCODE_ERROR='Tidak ditemukan setelah 5 percobaan';return false;}
   v.lat=r.lat;v.lng=r.lng;v.geocodeFailed=false;delete v.GEOCODE_ERROR;v.GEOCODED_ADDRESS=r.displayName;v.GEOCODE_QUERY=r.queryUsed;v.GEOCODE_PRECISION=r.precision;
-  geoCache[key]={lat:r.lat,lng:r.lng,displayName:r.displayName,queryUsed:r.queryUsed,precision:r.precision,manual:false};saveGeo();return true;
+  geoCache[key]={lat:r.lat,lng:r.lng,displayName:r.displayName,queryUsed:r.queryUsed,precision:r.precision,manual:false};return true;
 }
-$('startGeocodeBtn').onclick=async()=>{stopRequested=false;let cleanedCount=0;vehicles.forEach(v=>{if(v.ADDRESS&&!Number.isFinite(v.lat)){const r=cleanAddressSmart(v.ADDRESS);if(r.cleaned&&r.cleaned!==v.ADDRESS){v.ORIGINAL_ADDRESS=v.ORIGINAL_ADDRESS||v.ADDRESS;v.CLEANED_ADDRESS=r.cleaned;v.ADDRESS=r.cleaned;v.ADDRESS_CONFIDENCE=r.confidence;v.ADDRESS_STATUS=r.status;v.geocodeFailed=false;cleanedCount++;}}});saveData();const todo=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat));let ok=0,failed=0;for(let i=0;i<todo.length;i++){if(stopRequested)break;const v=todo[i];$('status').textContent=`Memproses ${i+1}/${todo.length}: ${v.POLICE_NO}`;try{const success=await processVehicle(v);success?ok++:failed++;}catch(e){v.geocodeFailed=true;v.GEOCODE_ERROR=e.message||'Gagal';failed++;}$('status').textContent+=v.geocodeFailed?' — gagal':' — berhasil';saveData();updateStats();if((i+1)%5===0)applyFilter();await sleep(1200);}applyFilter();$('status').textContent=stopRequested?`Proses dihentikan. Berhasil ${ok}, gagal ${failed}.`:`Selesai: ${ok} berhasil, ${failed} gagal. ${cleanedCount} alamat diperbaiki otomatis.`;};
+$('startGeocodeBtn').onclick=async()=>{
+  stopRequested=false;let cleanedCount=0;
+  for(let i=0;i<vehicles.length;i++){const v=vehicles[i];if(v.ADDRESS&&!Number.isFinite(v.lat)){const r=cleanAddressSmart(v.ADDRESS);if(r.cleaned&&r.cleaned!==v.ADDRESS){v.ORIGINAL_ADDRESS=v.ORIGINAL_ADDRESS||v.ADDRESS;v.CLEANED_ADDRESS=r.cleaned;v.ADDRESS=r.cleaned;v.ADDRESS_CONFIDENCE=r.confidence;v.ADDRESS_STATUS=r.status;v.geocodeFailed=false;cleanedCount++;}}if((i+1)%500===0){$('status').textContent=`Menyiapkan alamat ${(i+1).toLocaleString('id-ID')} / ${vehicles.length.toLocaleString('id-ID')}...`;await sleep(0);}}
+  searchIndexCache=new WeakMap();await saveData();const allTodo=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)),batchValue=$('geocodeBatchSize')?.value||'250',limit=batchValue==='all'?allTodo.length:Number(batchValue),todo=allTodo.slice(0,limit),total=todo.length;let ok=0,failed=0;
+  if(!total){$('status').textContent='Semua alamat sudah selesai diproses.';return;}
+  for(let i=0;i<total;i++){
+    if(stopRequested)break;const v=todo[i];$('status').textContent=`Proses alamat ${(i+1).toLocaleString('id-ID')} / ${total.toLocaleString('id-ID')}: ${v.POLICE_NO}`;
+    try{const success=await processVehicle(v);success?ok++:failed++;}catch(e){v.geocodeFailed=true;v.GEOCODE_ERROR=e.message||'Gagal';failed++;}
+    if((i+1)%10===0)updateStats();
+    if((i+1)%50===0){await Promise.all([saveData(),saveGeo()]);$('status').textContent+=` · checkpoint tersimpan`;}
+    if((i+1)%250===0){enrichRegions();window.renderDashboard?.();await sleep(0);}
+    await sleep(1050);
+  }
+  await Promise.all([saveData(),saveGeo()]);applyFilter();const remaining=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)).length;$('status').textContent=stopRequested?`Proses dihentikan dengan aman. Berhasil ${ok}, gagal ${failed}. Tersisa ${remaining.toLocaleString('id-ID')} alamat.`:`Sesi selesai: ${ok} berhasil, ${failed} gagal. Tersisa ${remaining.toLocaleString('id-ID')} alamat. ${cleanedCount} alamat diperbaiki otomatis.`;
+};
 function failedVehicles(){return vehicles.filter(v=>v.geocodeFailed===true);}
 function renderFailedList(){const rows=failedVehicles();$('failedList').innerHTML=rows.length?rows.map(v=>`<div class="failed-item" data-plate="${esc(normalizePlate(v.POLICE_NO))}"><b>${esc(v.POLICE_NO||'-')} · ${esc(v.CUSTOMER||'-')}</b><span>${esc(v.ADDRESS||'-')}</span>${v.GEOCODE_PRECISION?`<span>Ketepatan: ${esc(v.GEOCODE_PRECISION)}</span>`:''}</div>`).join(''):'<small>Tidak ada alamat gagal.</small>';$('failedList').querySelectorAll('.failed-item').forEach(el=>el.onclick=()=>openAddressEditor(vehicles.find(v=>normalizePlate(v.POLICE_NO)===el.dataset.plate)));}
 function openFailedModal(){$('addressModal').classList.remove('hidden');$('editAddressBox').classList.add('hidden');renderFailedList();}
@@ -253,8 +297,9 @@ $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{awa
 $('deleteAllBtn').onclick=()=>{if(!confirm('Hapus semua data kendaraan?'))return;vehicles=[];selectedFollowUps.clear();saveData();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Semua data kendaraan sudah dihapus.';};
 $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat ini akan diganti.'))return;vehicles=[...(window.DEFAULT_VEHICLES||[])];saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Data awal dipulihkan.';};
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
-$('searchInput').oninput=applyFilter;$('advisorFilter').onchange=applyFilter;$('regencyFilter').onchange=()=>{buildRegionFilters();applyFilter();};$('districtFilter').onchange=applyFilter;$('followUpStatusFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';$('regencyFilter').value='';buildRegionFilters();$('districtFilter').value='';$('followUpStatusFilter').value='';applyFilter();};$('selectVisibleBtn').onclick=()=>{filteredVehicles.forEach(v=>selectedFollowUps.add(followUpKey(v)));renderList();};$('clearSelectionBtn').onclick=()=>{selectedFollowUps.clear();renderList();};$('startBatchWaBtn').onclick=()=>{if(batchQueue.length&&batchIndex<batchQueue.length)return openNextBatchWa();batchQueue=vehicles.filter(v=>selectedFollowUps.has(followUpKey(v)));batchIndex=0;if(!batchQueue.length)return alert('Pilih minimal satu customer.');openNextBatchWa();};
-hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();saveData();
+let searchTimer;$('searchInput').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>applyFilter(),250);};$('advisorFilter').onchange=applyFilter;$('regencyFilter').onchange=()=>{buildRegionFilters();applyFilter();};$('districtFilter').onchange=applyFilter;$('followUpStatusFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';$('regencyFilter').value='';buildRegionFilters();$('districtFilter').value='';$('followUpStatusFilter').value='';applyFilter();};$('selectVisibleBtn').onclick=()=>{filteredVehicles.forEach(v=>selectedFollowUps.add(followUpKey(v)));renderList();};$('clearSelectionBtn').onclick=()=>{selectedFollowUps.clear();renderList();};$('startBatchWaBtn').onclick=()=>{if(batchQueue.length&&batchIndex<batchQueue.length)return openNextBatchWa();batchQueue=vehicles.filter(v=>selectedFollowUps.has(followUpKey(v)));batchIndex=0;if(!batchQueue.length)return alert('Pilih minimal satu customer.');openNextBatchWa();};
+$('listPrevBtn').onclick=()=>{if(listPage>1){listPage--;renderList();}};$('listNextBtn').onclick=()=>{const pages=Math.ceil(filteredVehicles.length/Number($('listPageSize').value||100));if(listPage<pages){listPage++;renderList();}};$('listPageSize').onchange=()=>{listPage=1;renderList();};
+hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();loadLargeStoreData();
 function refreshMapSize(){try{map.invalidateSize({pan:false,debounceMoveend:true});}catch(_){}}
 [0,100,300,700,1200].forEach(ms=>setTimeout(refreshMapSize,ms));
 window.addEventListener('load',refreshMapSize);

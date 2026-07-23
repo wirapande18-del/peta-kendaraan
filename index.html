@@ -5,9 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Peta Kendaraan Service</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
-  <link rel="stylesheet" href="style.css?v=13-dashboard" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="style.css?v=13-1-data-besar" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="storage.js?v=13-1-data-besar"></script>
   <script src="data.js?v=12-smart-excel"></script>
 </head>
 <body class="view-dashboard">
@@ -72,6 +76,7 @@
       <label class="upload"><span class="section-label">Upload Excel / CSV / TSV</span><span class="sidebar-mini-icon">⬆</span>
         <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" />
       </label>
+      <div class="large-data-controls section-label"><label>Proses alamat per sesi<select id="geocodeBatchSize"><option value="100">100 alamat</option><option value="250" selected>250 alamat (disarankan)</option><option value="500">500 alamat</option><option value="all">Semua alamat</option></select></label><span>Data yang sudah selesai otomatis dilewati. Proses dapat dihentikan dan dilanjutkan.</span></div>
       <div class="row wrap action-grid">
         <button id="startGeocodeBtn" title="Proses alamat"><span>Proses alamat</span></button>
         <button id="stopBtn" class="secondary" title="Stop"><span>Stop</span></button>
@@ -128,6 +133,12 @@
     <section class="card list-card">
       <div class="batch-head"><h2><span class="section-icon">🚗</span><span class="section-label">Daftar kendaraan</span></h2><span id="filteredCount">0 data</span></div>
       <div id="vehicleList" class="vehicle-list"></div>
+      <div id="listPagination" class="list-pagination">
+        <button id="listPrevBtn" class="secondary mini" type="button">‹ Sebelumnya</button>
+        <span id="listPageInfo">Halaman 1 / 1</span>
+        <select id="listPageSize" title="Jumlah data per halaman"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select>
+        <button id="listNextBtn" class="secondary mini" type="button">Berikutnya ›</button>
+      </div>
     </section>
   </aside>
 </main>
@@ -264,7 +275,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-dashboard"></script>
-<script src="dashboard.js?v=13-dashboard"></script>
+<script src="app.js?v=13-1-data-besar"></script>
+<script src="dashboard.js?v=13-1-data-besar"></script>
 </body>
 </html>
