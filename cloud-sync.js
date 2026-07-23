@@ -120,7 +120,7 @@
       }
       clearDirty(types);
       setStatus('online','Tersimpan online');
-      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.2.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.3.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
     }catch(error){
       types.forEach(type=>pending.add(type));
       console.warn('Sinkronisasi Supabase gagal:',error);
