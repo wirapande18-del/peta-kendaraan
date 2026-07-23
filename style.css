@@ -150,3 +150,22 @@ body.view-settings #appLayout{display:block;height:calc(100vh - 77px);overflow:a
 .large-data-note{padding:8px 10px;border-radius:8px;background:#e8f7f5;color:#0f6465;font-size:11px;font-weight:700}
 .large-data-controls{display:grid;grid-template-columns:220px 1fr;gap:10px;align-items:end;margin-top:10px;padding:10px;border-radius:9px;background:#e9f8f6;color:#135f61;font-size:11px}.large-data-controls select{margin-top:5px}.large-data-controls span{padding-bottom:9px;line-height:1.4}
 @media(max-width:600px){.list-pagination{grid-template-columns:1fr 1fr}.list-pagination span{grid-column:1/-1;grid-row:1}.list-pagination select{width:100%}.large-data-controls{grid-template-columns:1fr}}
+
+/* V13.4: pencarian lokasi dan koreksi titik manual */
+.popup-actions{flex-wrap:wrap}
+.popup-actions button.location-edit-btn{background:#f59e0b;border-color:#f59e0b;color:#fff}
+.location-modal-box{width:min(760px,94vw);max-height:94vh;overflow:auto}
+.location-modal-box>small{display:block;color:#667085;margin:6px 0 10px}
+.location-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.location-search-row input{margin-top:6px}
+.location-search-status{min-height:20px;margin:8px 0;color:#475467;font-size:13px}
+.location-search-results{display:grid;gap:6px;max-height:160px;overflow:auto;margin-bottom:10px}
+.location-result{display:block;width:100%;text-align:left;background:#fff;color:#24364b;border:1px solid #d7e0eb;padding:9px 11px;font-weight:600;line-height:1.35}
+.location-result:hover,.location-result.selected{border-color:#0f8b8d;background:#eafafa}
+.location-result small{display:block;color:#667085;font-weight:400;margin-top:3px}
+.location-mini-map{height:310px;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#dde5ef;margin-top:8px}
+.location-selected{display:grid;gap:4px;padding:10px 12px;background:#f5f8fb;border:1px solid #dce4ee;border-radius:10px;margin-top:10px}
+.location-selected span{font-size:13px;color:#344054}
+.location-selected small{color:#667085}
+.location-actions{justify-content:flex-end;margin-top:10px}
+@media(max-width:600px){.location-mini-map{height:270px}.location-search-row{grid-template-columns:1fr}.location-search-row button{width:100%}}

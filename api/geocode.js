@@ -31,6 +31,7 @@ const DISTRICT_TO_REGENCY = {
 
 const PLACE_HINTS = {
   BATUBULAN:['Sukawati','Gianyar'], BURUAN:['Blahbatuh','Gianyar'], BEDULU:['Blahbatuh','Gianyar'],
+  KERAMAS:['Blahbatuh','Gianyar'], MEDAHAN:['Blahbatuh','Gianyar'], SABA:['Blahbatuh','Gianyar'],
   PEJENG:['Tampaksiring','Gianyar'], MANUKAYA:['Tampaksiring','Gianyar'], SINGAPADU:['Sukawati','Gianyar'],
   CELUK:['Sukawati','Gianyar'], GUWANG:['Sukawati','Gianyar'], MAS:['Ubud','Gianyar'],
   KUTRI:['Blahbatuh','Gianyar'], PELIATAN:['Ubud','Gianyar'],
@@ -104,7 +105,8 @@ function inferArea(cleaned) {
     if (new RegExp(`\\b${phrase}\\b`).test(tokenText)) { placeHint = value; break; }
   }
   if (placeHint) {
-    if (!district) district = placeHint[0];
+    // Nama desa/kelurahan lebih spesifik daripada kecamatan yang mungkin salah di data Excel.
+    district = placeHint[0];
     if (!regency) regency = placeHint[1];
   }
   return { district, regency };
@@ -186,6 +188,31 @@ async function searchNominatim(query, expected) {
   return data.filter(x=>hitMatchesArea(x,expected)).sort((a,b)=>hitScore(b,expected)-hitScore(a,expected))[0]||null;
 }
 
+async function searchNominatimMany(query) {
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '8');
+  url.searchParams.set('countrycodes', 'id');
+  url.searchParams.set('addressdetails', '1');
+  url.searchParams.set('viewbox', '114.35,-8.00,115.78,-8.95');
+  url.searchParams.set('bounded', '1');
+  url.searchParams.set('q', /\b(BALI|INDONESIA)\b/i.test(query) ? query : `${query}, Bali, Indonesia`);
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'Accept-Language': 'id,en;q=0.8',
+      'User-Agent': 'PetaKendaraanService/4.1 (Vercel application)'
+    }
+  });
+  if (!response.ok) throw new Error(`Layanan pencarian sedang sibuk (${response.status})`);
+  const data = await response.json();
+  if (!Array.isArray(data)) return [];
+  return data.filter(hit => hitMatchesArea(hit, {})).slice(0, 8).map(hit => ({
+    lat: Number(hit.lat), lng: Number(hit.lon), displayName: hit.display_name || '',
+    type: hit.type || '', category: hit.category || ''
+  }));
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -193,8 +220,16 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method tidak diizinkan' });
   const original = String(req.query.address || '').trim();
-  const attempt = Math.max(0, Math.min(4, Number(req.query.attempt || 0)));
   if (!original) return res.status(400).json({ error: 'Alamat wajib diisi' });
+  if (String(req.query.mode || '') === 'search') {
+    try {
+      const results = await searchNominatimMany(original);
+      return res.status(200).json({ found: results.length > 0, results });
+    } catch (error) {
+      return res.status(503).json({ error: error.message || 'Pencarian lokasi gagal', retryable: true });
+    }
+  }
+  const attempt = Math.max(0, Math.min(4, Number(req.query.attempt || 0)));
   const cleaned = cleanAddress(original);
   const expected = inferArea(cleaned);
   const queries = buildQueries(cleaned);

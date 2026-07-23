@@ -1,4 +1,4 @@
-const APP_VERSION='13.3.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='13.4.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -103,11 +103,17 @@ const REGION_COORD_BOUNDS={
   Tabanan:[-8.88,-8.05,114.70,115.27],Jembrana:[-8.68,-8.00,114.35,114.98],Buleleng:[-8.45,-7.95,114.35,115.55],
   Bangli:[-8.62,-8.02,115.16,115.58],Klungkung:[-8.92,-8.30,115.25,115.75],Karangasem:[-8.68,-8.00,115.35,115.78]
 };
+const REGION_PLACE_HINTS=[
+  {regency:'Gianyar',district:'Blahbatuh',words:['KERAMAS','MEDAHAN','BONA','BELEGA','BURUAN','SABA']},
+  {regency:'Denpasar',district:'Denpasar Utara',words:['ANTASURA','PEGUYANGAN KANGIN','PEGUYANGAN']}
+];
 function inferRegion(v){
   const explicitRegency=String(v.REGENCY||v.KABUPATEN||v.KABUPATEN_KOTA||'').trim();
   const explicitDistrict=String(v.DISTRICT||v.KECAMATAN||'').trim();
   if(explicitRegency||explicitDistrict)return{regency:explicitRegency||'Belum diketahui',district:explicitDistrict||'Belum diketahui',source:'data'};
   const hay=normalizeAddress([v.ADDRESS,v.GEOCODED_ADDRESS,v.CLEANED_ADDRESS].filter(Boolean).join(' '));
+  const placeHint=REGION_PLACE_HINTS.find(r=>r.words.some(w=>hay.includes(w)));
+  if(placeHint)return{regency:placeHint.regency,district:placeHint.district,source:'desa'};
   const found=REGION_RULES.find(r=>r.words.some(w=>hay.includes(w)));
   if(found)return{regency:found.regency,district:found.district,source:'alamat'};
   return{regency:'Belum diketahui',district:'Belum diketahui',source:'unknown'};
@@ -189,7 +195,7 @@ const markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup(
 if(typeof markerLayer.addTo==='function'&&!map.hasLayer?.(markerLayer))markerLayer.addTo(map);
 let markerRenderVersion=0,markersDirty=true;
 
-function hydrateCoordinates(){let invalid=0;vehicles.forEach(v=>{const key=cacheKey(v.ADDRESS),c=geoCache[key],lat=c?Number(c.lat):Number(v.lat),lng=c?Number(c.lng):Number(v.lng),display=c?.displayName||v.GEOCODED_ADDRESS||'';if(Number.isFinite(lat)&&Number.isFinite(lng)&&!coordinateMatchesRegion(v,lat,lng,display)){delete v.lat;delete v.lng;delete v.GEOCODED_ADDRESS;delete v.GEOCODE_QUERY;delete geoCache[key];v.geocodeFailed=false;v.GEOCODE_PRECISION='perlu diproses ulang';v.GEO_VALIDATION='Titik lama dihapus karena berada di luar wilayah alamat.';invalid++;return;}if(c){v.lat=lat;v.lng=lng;v.geocodeFailed=false;}});if(invalid){saveData();saveGeo();setTimeout(()=>{$('status').textContent=`${invalid} titik lama di luar wilayah dihapus. Klik Proses alamat untuk mencari ulang.`;},50);}return invalid;}
+function hydrateCoordinates(){let invalid=0;vehicles.forEach(v=>{if(v.MANUAL_LOCATION&&Number.isFinite(Number(v.lat))&&Number.isFinite(Number(v.lng))){v.lat=Number(v.lat);v.lng=Number(v.lng);v.geocodeFailed=false;return;}const key=cacheKey(v.ADDRESS),c=geoCache[key],lat=c?Number(c.lat):Number(v.lat),lng=c?Number(c.lng):Number(v.lng),display=c?.displayName||v.GEOCODED_ADDRESS||'';if(Number.isFinite(lat)&&Number.isFinite(lng)&&!coordinateMatchesRegion(v,lat,lng,display)){delete v.lat;delete v.lng;delete v.GEOCODED_ADDRESS;delete v.GEOCODE_QUERY;delete geoCache[key];v.geocodeFailed=false;v.GEOCODE_PRECISION='perlu diproses ulang';v.GEO_VALIDATION='Titik lama dihapus karena berada di luar wilayah alamat.';invalid++;return;}if(c){v.lat=lat;v.lng=lng;v.geocodeFailed=false;}});if(invalid){saveData();saveGeo();setTimeout(()=>{$('status').textContent=`${invalid} titik lama di luar wilayah dihapus. Klik Proses alamat untuk mencari ulang.`;},50);}return invalid;}
 async function auditCoordinatesNow(){
   const invalid=hydrateCoordinates();await Promise.all([saveData(),saveGeo()]);applyFilter();
   const message=invalid?`${invalid} titik yang tidak sesuai wilayah sudah dihapus. Sekarang klik Proses alamat untuk mencari ulang.`:'Pemeriksaan selesai. Tidak ditemukan titik di luar batas wilayah.';
@@ -200,7 +206,7 @@ function buildAdvisorFilter(){const current=advisorKey($('advisorFilter').value)
 const advisorColor=name=>advisorColorMap[advisorKey(name)]||'#64748b';
 function markerIcon(name){const color=advisorColor(name);return L.divIcon({className:'advisor-marker-wrap',html:`<div class="advisor-marker" style="--marker-color:${color}"><span></span></div>`,iconSize:[34,44],iconAnchor:[17,43],popupAnchor:[0,-40]});}
 function renderLegend(names){$('advisorLegend').innerHTML=names.length?names.map(n=>`<div class="legend-item"><span class="legend-dot" style="background:${advisorColor(n)}"></span><span>${esc(n)}</span></div>`).join(''):'<small>Belum ada data Service Advisor.</small>';}
-function popupHtml(v){const phone=getPhone(v),q=encodeURIComponent(`${v.lat||''},${v.lng||''}`),key=esc(followUpKey(v)),r=inferRegion(v);return `<div class="popup"><h3>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</h3><div class="popup-grid"><b>Customer</b><span>${esc(v.CUSTOMER||'-')}</span><b>Tahun/VIN</b><span>${esc(v.VIN||'-')}</span><b>No. Rangka</b><span>${esc(v['NO RANGKA']||v.NO_RANGKA||'-')}</span><b>KM</b><span>${esc(v.KM||'-')}</span><b>Last Service</b><span>${esc(v['LAST SERVICE']||v.LAST_SERVICE_DATE||'-')}</span><b>Advisor</b><span>${esc(v.SERVICE_ADVISOR||'-')}</span><b>Kontak</b><span>${esc(v.contact_person||'-')}</span><b>Telepon</b><span>${esc(getPhoneRaw(v)||'-')}</span><b>Alamat</b><span>${esc(v.ADDRESS||'-')}</span><b>Kabupaten</b><span>${esc(r.regency)}</span><b>Kecamatan</b><span>${esc(r.district)}</span>${v.GEOCODE_PRECISION?`<b>Ketepatan</b><span>${esc(v.GEOCODE_PRECISION)}</span>`:''}<b>Aplikasi</b><span>Versi ${APP_VERSION}</span></div>${followUpPopupHtml(v)}<div class="popup-actions">${phone?`<button class="wa mini" onclick="openSingleWa('${key}')">WhatsApp</button>`:''}<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${q}">Buka Google Maps</a><button class="follow-up-popup-btn mini" onclick="openFollowUp('${key}')">Reason Follow Up</button><button class="danger mini" onclick="deleteOne('${esc(normalizePlate(v.POLICE_NO))}')">Hapus</button></div></div>`;}
+function popupHtml(v){const phone=getPhone(v),q=encodeURIComponent(`${v.lat||''},${v.lng||''}`),key=esc(followUpKey(v)),r=inferRegion(v);return `<div class="popup"><h3>${esc(v.POLICE_NO||'-')} · ${esc(v.MODEL||'-')}</h3><div class="popup-grid"><b>Customer</b><span>${esc(v.CUSTOMER||'-')}</span><b>Tahun/VIN</b><span>${esc(v.VIN||'-')}</span><b>No. Rangka</b><span>${esc(v['NO RANGKA']||v.NO_RANGKA||'-')}</span><b>KM</b><span>${esc(v.KM||'-')}</span><b>Last Service</b><span>${esc(v['LAST SERVICE']||v.LAST_SERVICE_DATE||'-')}</span><b>Advisor</b><span>${esc(v.SERVICE_ADVISOR||'-')}</span><b>Kontak</b><span>${esc(v.contact_person||'-')}</span><b>Telepon</b><span>${esc(getPhoneRaw(v)||'-')}</span><b>Alamat</b><span>${esc(v.ADDRESS||'-')}</span><b>Kabupaten</b><span>${esc(r.regency)}</span><b>Kecamatan</b><span>${esc(r.district)}</span>${v.GEOCODE_PRECISION?`<b>Ketepatan</b><span>${esc(v.GEOCODE_PRECISION)}</span>`:''}<b>Aplikasi</b><span>Versi ${APP_VERSION}</span></div>${followUpPopupHtml(v)}<div class="popup-actions">${phone?`<button class="wa mini" onclick="openSingleWa('${key}')">WhatsApp</button>`:''}<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${q}">Buka Google Maps</a><button class="location-edit-btn mini" onclick="openLocationEditor('${key}')">Cari & Pindahkan Titik</button><button class="follow-up-popup-btn mini" onclick="openFollowUp('${key}')">Reason Follow Up</button><button class="danger mini" onclick="deleteOne('${esc(normalizePlate(v.POLICE_NO))}')">Hapus</button></div></div>`;}
 function renderMarkers(){
   markersDirty=false;const version=++markerRenderVersion;markerLayer.clearLayers();markers=[];
   const rows=filteredVehicles.filter(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng)),bounds=rows.map(v=>[v.lat,v.lng]);let index=0;
@@ -246,7 +252,7 @@ function mergeVehicle(oldRow,newRow){
   const merged={...oldRow};
   IMPORT_FIELDS.forEach(field=>{if(hasValue(newRow[field]))merged[field]=newRow[field];else if(!(field in merged))merged[field]='';});
   // Alamat yang berubah harus dicari ulang agar titik peta tidak memakai alamat lama.
-  if(hasValue(newRow.ADDRESS)&&normalizeAddress(newRow.ADDRESS)!==normalizeAddress(oldRow.ADDRESS||'')){
+  if(!oldRow.MANUAL_LOCATION&&hasValue(newRow.ADDRESS)&&normalizeAddress(newRow.ADDRESS)!==normalizeAddress(oldRow.ADDRESS||'')){
     delete merged.lat;delete merged.lng;delete merged.GEOCODED_ADDRESS;delete merged.GEOCODE_QUERY;delete merged.GEOCODE_PRECISION;
     merged.geocodeFailed=false;
   }
@@ -325,9 +331,60 @@ function renderFailedList(){const rows=failedVehicles();$('failedList').innerHTM
 function openFailedModal(){$('addressModal').classList.remove('hidden');$('editAddressBox').classList.add('hidden');renderFailedList();}
 function closeModal(){manualMode=false;editingVehicle=null;$('addressModal').classList.add('hidden');$('manualHelp').textContent='';if(manualPreview){map.removeLayer(manualPreview);manualPreview=null;}}
 function openAddressEditor(v){if(!v)return;editingVehicle=v;$('addressModal').classList.remove('hidden');$('editAddressBox').classList.remove('hidden');$('editVehicleTitle').textContent=`${v.POLICE_NO||'-'} · ${v.CUSTOMER||'-'}`;$('editAddressInput').value=normalizeAddress(v.ADDRESS||'');$('manualHelp').textContent='';}
-$('retryAddressBtn').onclick=async()=>{if(!editingVehicle)return;const oldKey=cacheKey(editingVehicle.ADDRESS),newAddress=$('editAddressInput').value.trim();if(!newAddress)return alert('Alamat tidak boleh kosong.');$('status').textContent='Mencari alamat yang diperbaiki...';try{const r=await geocodeAddress(newAddress);if(!r)return alert('Alamat masih belum ditemukan. Gunakan tombol Klik titik di peta.');editingVehicle.ADDRESS=newAddress;editingVehicle.lat=r.lat;editingVehicle.lng=r.lng;editingVehicle.geocodeFailed=false;editingVehicle.GEOCODED_ADDRESS=r.displayName;delete geoCache[oldKey];geoCache[cacheKey(newAddress)]={lat:r.lat,lng:r.lng,displayName:r.displayName,manual:false};saveGeo();saveData();applyFilter();renderFailedList();map.setView([r.lat,r.lng],16);closeModal();$('status').textContent='Alamat berhasil diperbaiki.';}catch(e){alert(e.message);}};
+$('retryAddressBtn').onclick=async()=>{if(!editingVehicle)return;const oldKey=cacheKey(editingVehicle.ADDRESS),newAddress=$('editAddressInput').value.trim();if(!newAddress)return alert('Alamat tidak boleh kosong.');$('status').textContent='Mencari alamat yang diperbaiki...';try{const r=await geocodeAddress(newAddress);if(!r)return alert('Alamat masih belum ditemukan. Gunakan tombol Klik titik di peta.');editingVehicle.ADDRESS=newAddress;editingVehicle.lat=r.lat;editingVehicle.lng=r.lng;editingVehicle.geocodeFailed=false;editingVehicle.GEOCODED_ADDRESS=r.displayName;editingVehicle.MANUAL_LOCATION=false;delete editingVehicle.MANUAL_LOCATION_UPDATED_AT;delete geoCache[oldKey];geoCache[cacheKey(newAddress)]={lat:r.lat,lng:r.lng,displayName:r.displayName,manual:false};saveGeo();saveData();applyFilter();renderFailedList();map.setView([r.lat,r.lng],16);closeModal();$('status').textContent='Alamat berhasil diperbaiki.';}catch(e){alert(e.message);}};
 $('manualPointBtn').onclick=()=>{if(!editingVehicle)return;manualMode=true;$('manualHelp').textContent='Tutup kotak ini lalu klik lokasi kendaraan pada peta.';$('addressModal').classList.add('hidden');$('status').textContent='Klik titik lokasi yang benar pada peta.';};
-map.on('click',e=>{if(!manualMode||!editingVehicle)return;if(manualPreview)map.removeLayer(manualPreview);manualPreview=L.marker(e.latlng).addTo(map);if(!confirm('Gunakan titik ini untuk kendaraan '+(editingVehicle.POLICE_NO||'')+'?'))return;const newAddress=$('editAddressInput').value.trim()||editingVehicle.ADDRESS;editingVehicle.ADDRESS=newAddress;editingVehicle.lat=e.latlng.lat;editingVehicle.lng=e.latlng.lng;editingVehicle.geocodeFailed=false;geoCache[cacheKey(newAddress)]={lat:e.latlng.lat,lng:e.latlng.lng,displayName:'Titik manual',manual:true};saveGeo();saveData();manualMode=false;map.removeLayer(manualPreview);manualPreview=null;applyFilter();$('status').textContent='Titik manual berhasil disimpan.';});
+map.on('click',e=>{if(!manualMode||!editingVehicle)return;if(manualPreview)map.removeLayer(manualPreview);manualPreview=L.marker(e.latlng).addTo(map);if(!confirm('Gunakan titik ini untuk kendaraan '+(editingVehicle.POLICE_NO||'')+'?'))return;const newAddress=$('editAddressInput').value.trim()||editingVehicle.ADDRESS;editingVehicle.ADDRESS=newAddress;editingVehicle.lat=e.latlng.lat;editingVehicle.lng=e.latlng.lng;editingVehicle.geocodeFailed=false;editingVehicle.MANUAL_LOCATION=true;editingVehicle.MANUAL_LOCATION_UPDATED_AT=new Date().toISOString();editingVehicle.GEOCODE_PRECISION='titik manual';editingVehicle.GEOCODED_ADDRESS='Titik dipilih manual';saveData();manualMode=false;map.removeLayer(manualPreview);manualPreview=null;applyFilter();$('status').textContent='Titik manual berhasil disimpan.';});
+
+// ===== V13.4 Cari lokasi dan pindahkan marker kendaraan =====
+let locationEditVehicle=null,locationMap=null,locationMarker=null,locationResults=[];
+function ensureLocationMap(){
+  if(locationMap)return locationMap;
+  locationMap=L.map('locationMiniMap',{preferCanvas:true,zoomControl:true}).setView([-8.4095,115.1889],9);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors',crossOrigin:true}).addTo(locationMap);
+  locationMap.on('click',e=>setLocationCandidate({lat:e.latlng.lat,lng:e.latlng.lng,displayName:'Titik dipilih langsung pada peta'},-1));
+  return locationMap;
+}
+function updateLocationMarkerText(label){
+  if(!locationMarker){$('locationSelectedText').textContent='Belum dipilih';$('locationCoordinates').textContent='-';$('saveLocationBtn').disabled=true;return;}
+  const p=locationMarker.getLatLng();$('locationSelectedText').textContent=label||'Titik dipilih manual';$('locationCoordinates').textContent=`Latitude ${p.lat.toFixed(7)} · Longitude ${p.lng.toFixed(7)}`;$('saveLocationBtn').disabled=false;
+}
+function setLocationCandidate(candidate,index=-1){
+  if(!candidate||!Number.isFinite(Number(candidate.lat))||!Number.isFinite(Number(candidate.lng)))return;
+  const m=ensureLocationMap(),lat=Number(candidate.lat),lng=Number(candidate.lng),label=candidate.displayName||'Titik dipilih manual';
+  if(locationMarker)locationMarker.setLatLng([lat,lng]);else{locationMarker=L.marker([lat,lng],{draggable:true}).addTo(m);locationMarker.on('dragend',()=>updateLocationMarkerText('Titik digeser manual pada peta'));}
+  locationMarker.locationLabel=label;m.setView([lat,lng],17);updateLocationMarkerText(label);
+  document.querySelectorAll('.location-result').forEach((el,i)=>el.classList.toggle('selected',i===index));
+}
+function closeLocationEditor(){
+  $('locationModal').classList.add('hidden');locationEditVehicle=null;locationResults=[];$('locationSearchResults').innerHTML='';$('locationSearchStatus').textContent='';
+  if(locationMarker&&locationMap){locationMap.removeLayer(locationMarker);locationMarker=null;}
+}
+window.openLocationEditor=key=>{
+  const v=vehicles.find(x=>followUpKey(x)===key)||vehicles.find(x=>normalizePlate(x.POLICE_NO)===normalizePlate(key));if(!v)return alert('Data kendaraan tidak ditemukan.');
+  locationEditVehicle=v;map.closePopup();$('locationVehicleInfo').textContent=`${v.POLICE_NO||'-'} · ${v.CUSTOMER||'-'}`;$('locationSearchInput').value=v.ADDRESS||'';$('locationSearchResults').innerHTML='';$('locationSearchStatus').textContent='Ketik alamat lebih lengkap lalu klik Cari.';$('locationModal').classList.remove('hidden');
+  const m=ensureLocationMap();setTimeout(()=>{m.invalidateSize();if(Number.isFinite(Number(v.lat))&&Number.isFinite(Number(v.lng)))setLocationCandidate({lat:Number(v.lat),lng:Number(v.lng),displayName:'Titik kendaraan saat ini'});else{m.setView([-8.4095,115.1889],9);updateLocationMarkerText('');}},80);
+};
+async function searchLocation(){
+  const query=$('locationSearchInput').value.trim();if(query.length<3)return alert('Masukkan nama alamat atau tempat minimal 3 huruf.');
+  const btn=$('locationSearchBtn');btn.disabled=true;$('locationSearchStatus').textContent='Mencari lokasi...';$('locationSearchResults').innerHTML='';
+  try{
+    const res=await fetch(`/api/geocode?mode=search&address=${encodeURIComponent(query)}&v=13.4`),data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Pencarian gagal.');
+    locationResults=Array.isArray(data.results)?data.results:[];
+    if(!locationResults.length){$('locationSearchStatus').textContent='Lokasi belum ditemukan. Tambahkan desa, kecamatan, kabupaten, dan Bali.';return;}
+    $('locationSearchStatus').textContent=`Ditemukan ${locationResults.length} pilihan. Klik hasil yang benar, lalu marker masih bisa digeser.`;
+    $('locationSearchResults').innerHTML=locationResults.map((r,i)=>`<button class="location-result" data-i="${i}" type="button">${esc(r.displayName||'Lokasi tanpa nama')}<small>${Number(r.lat).toFixed(6)}, ${Number(r.lng).toFixed(6)}</small></button>`).join('');
+    $('locationSearchResults').querySelectorAll('.location-result').forEach(el=>el.onclick=()=>setLocationCandidate(locationResults[Number(el.dataset.i)],Number(el.dataset.i)));
+    setLocationCandidate(locationResults[0],0);
+  }catch(e){$('locationSearchStatus').textContent=e.message||'Pencarian lokasi gagal. Coba beberapa saat lagi.';}finally{btn.disabled=false;}
+}
+$('locationSearchBtn').onclick=searchLocation;$('locationSearchInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();searchLocation();}};
+$('saveLocationBtn').onclick=async()=>{
+  if(!locationEditVehicle||!locationMarker)return;const p=locationMarker.getLatLng(),label=locationMarker.locationLabel||$('locationSelectedText').textContent||'Titik manual';
+  if(!confirm(`Simpan titik ini untuk kendaraan ${locationEditVehicle.POLICE_NO||'-'}?`))return;
+  locationEditVehicle.lat=p.lat;locationEditVehicle.lng=p.lng;locationEditVehicle.geocodeFailed=false;locationEditVehicle.MANUAL_LOCATION=true;locationEditVehicle.MANUAL_LOCATION_UPDATED_AT=new Date().toISOString();locationEditVehicle.GEOCODED_ADDRESS=label;locationEditVehicle.GEOCODE_QUERY=$('locationSearchInput').value.trim();locationEditVehicle.GEOCODE_PRECISION='titik manual tersimpan';delete locationEditVehicle.GEOCODE_ERROR;
+  const savedVehicle=locationEditVehicle;await saveData();closeLocationEditor();applyFilter();setTimeout(()=>{map.setView([savedVehicle.lat,savedVehicle.lng],17);const m=markers.find(x=>x.vehicle===savedVehicle);if(m){if(typeof markerLayer.zoomToShowLayer==='function')markerLayer.zoomToShowLayer(m,()=>m.openPopup());else m.openPopup();}},250);$('status').textContent=`Titik ${savedVehicle.POLICE_NO||''} berhasil dipindahkan dan disimpan permanen.`;
+};
+$('closeLocationBtn').onclick=closeLocationEditor;$('cancelLocationBtn').onclick=closeLocationEditor;$('locationModal').onclick=e=>{if(e.target===$('locationModal'))closeLocationEditor();};
 $('showFailedBtn').onclick=openFailedModal;$('closeModalBtn').onclick=closeModal;$('cancelEditBtn').onclick=()=>{$('editAddressBox').classList.add('hidden');editingVehicle=null;};$('addressModal').onclick=e=>{if(e.target===$('addressModal'))closeModal();};
 $('auditCoordinatesBtn').onclick=auditCoordinatesNow;
 $('stopBtn').onclick=()=>stopRequested=true;
