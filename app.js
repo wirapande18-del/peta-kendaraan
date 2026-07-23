@@ -1,4 +1,4 @@
-const APP_VERSION='14.0.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='14.2.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';

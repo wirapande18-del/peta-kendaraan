@@ -1,4 +1,4 @@
-PETA KENDARAAN SERVICE — VERSI 14.0 SUPABASE ONLINE
+PETA KENDARAAN SERVICE — VERSI 14.2 SUPABASE ONLINE
 ====================================================
 
 FUNGSI BARU
@@ -7,6 +7,7 @@ FUNGSI BARU
 - Sinkronisasi hanya mengirim baris yang berubah agar tetap cepat untuk 7.000+ data.
 - Data online dimuat bertahap maksimal 1.000 baris per permintaan.
 - Login wajib. Secret key/service_role tidak digunakan.
+- Kolom login menampilkan Nama Pengguna: AT_Gianyar. Email Supabase digunakan otomatis di belakang layar.
 
 SETUP PERTAMA (WAJIB)
 1. Buka project Supabase.
@@ -16,7 +17,7 @@ SETUP PERTAMA (WAJIB)
 5. Buka Authentication > Users > Add user.
 6. Masukkan email dan password untuk akun yang akan menggunakan aplikasi.
 7. Upload seluruh isi paket V14 ke repository GitHub dan tunggu Vercel berstatus Ready.
-8. Buka aplikasi, login memakai akun yang dibuat pada langkah 6.
+8. Buka aplikasi, login dengan nama pengguna AT_Gianyar dan password akun yang dibuat pada langkah 6.
 
 MIGRASI DATA LAMA
 - Buka V14 pertama kali dari perangkat/browser yang masih menyimpan data V13.8.

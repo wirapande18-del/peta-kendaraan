@@ -33,8 +33,13 @@
     if(modal)modal.classList.toggle('hidden',!show);
     if($('cloudLoginStatus'))$('cloudLoginStatus').textContent=message;
   }
+  function userLabel(email=''){
+    const aliases=config.loginAliases||{};
+    const key=Object.keys(aliases).find(name=>String(aliases[name]).toLowerCase()===String(email).toLowerCase());
+    return (config.loginDisplayNames||{})[key]||key||email;
+  }
   function setUser(email=''){
-    if($('cloudUserEmail'))$('cloudUserEmail').textContent=email;
+    if($('cloudUserEmail'))$('cloudUserEmail').textContent=userLabel(email);
   }
   async function waitForBridge(){
     for(let i=0;i<100;i++){
@@ -115,7 +120,7 @@
       }
       clearDirty(types);
       setStatus('online','Tersimpan online');
-      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.0.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.2.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
     }catch(error){
       types.forEach(type=>pending.add(type));
       console.warn('Sinkronisasi Supabase gagal:',error);
@@ -207,8 +212,10 @@
     });
     $('cloudLoginForm')?.addEventListener('submit',async event=>{
       event.preventDefault();
-      const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;
-      if(!email||!password)return;
+      const username=$('cloudUsername').value.trim().toLowerCase(),password=$('cloudPassword').value;
+      if(!username||!password)return;
+      const email=username.includes('@')?username:(config.loginAliases||{})[username];
+      if(!email){$('cloudLoginStatus').textContent='Nama pengguna tidak terdaftar.';return;}
       const button=$('cloudLoginBtn');button.disabled=true;$('cloudLoginStatus').textContent='Memeriksa akun...';
       const {error:loginError}=await client.auth.signInWithPassword({email,password});
       button.disabled=false;
