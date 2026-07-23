@@ -34,25 +34,43 @@ const safeStore=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value)
 async function saveLarge(key,value){try{if(!window.BigStore)throw new Error('Penyimpanan data besar tidak tersedia');await BigStore.set(key,value);return true;}catch(err){console.warn('IndexedDB gagal:',err);$('status').textContent='Penyimpanan data besar gagal. Periksa izin penyimpanan browser.';return false;}}
 const saveData=()=>saveLarge('vehicles',vehicles);
 const saveGeo=()=>saveLarge('geoCache',geoCache);
-const saveFollowUps=()=>{const text=JSON.stringify(followUps);if(text.length<1500000)safeStore(FOLLOW_UP_KEY,followUps);return saveLarge('followUps',followUps);};
+const saveFollowUps=()=>{invalidateFollowUpLookup();const text=JSON.stringify(followUps);if(text.length<1500000)safeStore(FOLLOW_UP_KEY,followUps);return saveLarge('followUps',followUps);};
 async function loadLargeStoreData(){
   if(!window.BigStore)return;
   try{
     const [savedVehicles,savedGeo,savedFollowUps]=await Promise.all([BigStore.get('vehicles'),BigStore.get('geoCache'),BigStore.get('followUps')]);
     if(Array.isArray(savedVehicles))vehicles=savedVehicles;else if(await saveData()){localStorage.removeItem(DATA_KEY);localStorage.removeItem('vehicleMapDataV3');}
     if(savedGeo&&typeof savedGeo==='object')geoCache=savedGeo;else if(await saveGeo()){localStorage.removeItem(GEO_KEY);localStorage.removeItem('vehicleMapGeocodeCacheV3');}
-    if(savedFollowUps&&typeof savedFollowUps==='object')followUps=savedFollowUps;else await saveFollowUps();
-    vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_CP?{...v,TELEPHONE_CP:phone}:v;});
+    if(savedFollowUps&&typeof savedFollowUps==='object'){followUps=savedFollowUps;invalidateFollowUpLookup();}else await saveFollowUps();
+    vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_CP?{...v,TELEPHONE_CP:phone}:v;});const recovered=reconcileFollowUps();if(recovered)await saveFollowUps();
     hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
     navigator.storage?.persist?.().catch(()=>{});const estimate=await BigStore.estimate().catch(()=>({})),used=estimate.usage?Math.round(estimate.usage/1048576):0,quota=estimate.quota?Math.round(estimate.quota/1048576):0;
-    $('status').textContent=`${vehicles.length.toLocaleString('id-ID')} data siap${quota?` · Penyimpanan ${used} MB dari ${quota} MB`:''}`;
+    $('status').textContent=`${vehicles.length.toLocaleString('id-ID')} data siap${recovered?` · ${recovered} status follow up dipulihkan`:''}${quota?` · Penyimpanan ${used} MB dari ${quota} MB`:''}`;
   }catch(err){console.warn(err);$('status').textContent='Penyimpanan besar tidak dapat dibuka. Data bawaan tetap ditampilkan.';}
 }
-const followUpKey=v=>normalizePlate(v&&v.POLICE_NO);
+const identityText=s=>String(s||'').toLocaleUpperCase('id-ID').replace(/[^A-Z0-9]/g,'');
+const primaryFollowUpKey=v=>{const frame=normalizeFrame(v?.['NO RANGKA']||v?.NO_RANGKA||v?.CHASSIS_NO),plate=normalizePlate(v?.POLICE_NO);return frame?`F:${frame}`:`P:${plate}`;};
+const followUpKey=v=>primaryFollowUpKey(v);
+let followUpLookupCache=null;
+function invalidateFollowUpLookup(){followUpLookupCache=null;}
+function buildFollowUpLookup(){
+  const byPlate=new Map(),byFrame=new Map(),byCustomerModel=new Map(),vehicleIdentityCount=new Map(),addUnique=(map,key,value)=>{if(!key)return;if(!map.has(key))map.set(key,value);else if(map.get(key)!==value)map.set(key,null);};
+  vehicles.forEach(v=>{const k=`${identityText(v?.CUSTOMER)}|${identityText(v?.MODEL)}`;vehicleIdentityCount.set(k,(vehicleIdentityCount.get(k)||0)+1);});
+  Object.entries(followUps).forEach(([key,record])=>{addUnique(byPlate,normalizePlate(record?.plate),key);addUnique(byFrame,normalizeFrame(record?.frame||record?.noRangka),key);const cm=`${identityText(record?.customer)}|${identityText(record?.model)}`;if(vehicleIdentityCount.get(cm)===1)addUnique(byCustomerModel,cm,key);});
+  return followUpLookupCache={byPlate,byFrame,byCustomerModel};
+}
+function followUpEntry(v){
+  const frame=normalizeFrame(v?.['NO RANGKA']||v?.NO_RANGKA||v?.CHASSIS_NO),plate=normalizePlate(v?.POLICE_NO),direct=[frame&&`F:${frame}`,plate&&`P:${plate}`,plate].filter(Boolean);
+  for(const key of direct)if(followUps[key])return{key,record:followUps[key]};
+  const lookup=followUpLookupCache||buildFollowUpLookup(),candidate=(frame&&lookup.byFrame.get(frame))||(plate&&lookup.byPlate.get(plate))||lookup.byCustomerModel.get(`${identityText(v?.CUSTOMER)}|${identityText(v?.MODEL)}`);
+  return candidate&&followUps[candidate]?{key:candidate,record:followUps[candidate]}:null;
+}
+const getFollowUp=v=>followUpEntry(v)?.record;
+function reconcileFollowUps(){let recovered=0;vehicles.forEach(v=>{const entry=followUpEntry(v),primary=primaryFollowUpKey(v);if(entry&&!followUps[primary]){followUps[primary]={...entry.record,plate:v.POLICE_NO||entry.record.plate||'',frame:v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO||entry.record.frame||'',customer:v.CUSTOMER||entry.record.customer||'',model:v.MODEL||entry.record.model||''};if(entry.key!==primary)delete followUps[entry.key];recovered++;}});if(recovered)invalidateFollowUpLookup();return recovered;}
 const followUpStatusLabel=s=>({BELUM:'Belum Follow Up',SUDAH:'Sudah Follow Up',TERKIRIM:'Sudah Terkirim',BELUM_DIBACA:'Belum Dibaca',DIBACA:'Sudah Dibaca',DIBALAS:'Sudah Dibalas',NOMOR_TIDAK_AKTIF:'Nomor Tidak Aktif',TIDAK_ADA_WHATSAPP:'Tidak Ada WhatsApp',BOOKING:'Booking',TIDAK_TERHUBUNG:'Tidak Terhubung',FOLLOW_UP_ULANG:'Follow Up Ulang',SELESAI:'Selesai'}[s]||s||'Belum Follow Up');
 const followUpReasonLabel=s=>({REMINDER_SERVICE:'Reminder service berkala',CUSTOMER_SIBUK:'Customer sedang sibuk',TIDAK_DIANGKAT:'Telepon tidak diangkat',NOMOR_TIDAK_AKTIF:'Nomor tidak aktif',TIDAK_ADA_WHATSAPP:'Nomor tidak ada WhatsApp',SUDAH_SERVICE:'Sudah melakukan service',SERVICE_DI_TEMPAT_LAIN:'Service di tempat lain',KENDARAAN_DIJUAL:'Kendaraan sudah dijual',PINDAH_DOMISILI:'Customer pindah domisili',MENUNGGU_KONFIRMASI:'Menunggu konfirmasi customer',JANJI_SERVICE:'Customer janji datang service',BELUM_BERSEDIA:'Customer belum bersedia service',LAINNYA:'Lainnya'}[s]||s||'-');
 const formatFollowUpDate=s=>s?String(s).split('-').reverse().join('/'):'-';
-function followUpPopupHtml(v){const f=followUps[followUpKey(v)];if(!f)return '<div class="follow-up-status-box"><b>Status Follow Up:</b> Belum ada data</div>';return `<div class="follow-up-status-box"><b>Status:</b> ${esc(followUpStatusLabel(f.status))}<br><b>Reason:</b> ${esc(followUpReasonLabel(f.reason))}<br><b>Tanggal:</b> ${esc(formatFollowUpDate(f.date))}<br><b>Next:</b> ${esc(formatFollowUpDate(f.nextDate))}</div>`;}
+function followUpPopupHtml(v){const f=getFollowUp(v);if(!f)return '<div class="follow-up-status-box"><b>Status Follow Up:</b> Belum ada data</div>';return `<div class="follow-up-status-box"><b>Status:</b> ${esc(followUpStatusLabel(f.status))}<br><b>Reason:</b> ${esc(followUpReasonLabel(f.reason))}<br><b>Tanggal:</b> ${esc(formatFollowUpDate(f.date))}<br><b>Next:</b> ${esc(formatFollowUpDate(f.nextDate))}</div>`;}
 
 
 const REGION_RULES=[
@@ -79,6 +97,11 @@ const REGION_RULES=[
   {regency:'Klungkung',district:'Klungkung',words:['SEMARAPURA','KLUNGKUNG']},
   {regency:'Bangli',district:'Bangli',words:['BANGLI']}
 ];
+const REGION_COORD_BOUNDS={
+  Denpasar:[-8.80,-8.50,115.05,115.34],Gianyar:[-8.76,-8.05,115.15,115.58],Badung:[-8.92,-8.05,114.95,115.33],
+  Tabanan:[-8.88,-8.05,114.70,115.27],Jembrana:[-8.68,-8.00,114.35,114.98],Buleleng:[-8.45,-7.95,114.35,115.55],
+  Bangli:[-8.62,-8.02,115.16,115.58],Klungkung:[-8.92,-8.30,115.25,115.75],Karangasem:[-8.68,-8.00,115.35,115.78]
+};
 function inferRegion(v){
   const explicitRegency=String(v.REGENCY||v.KABUPATEN||v.KABUPATEN_KOTA||'').trim();
   const explicitDistrict=String(v.DISTRICT||v.KECAMATAN||'').trim();
@@ -87,6 +110,12 @@ function inferRegion(v){
   const found=REGION_RULES.find(r=>r.words.some(w=>hay.includes(w)));
   if(found)return{regency:found.regency,district:found.district,source:'alamat'};
   return{regency:'Belum diketahui',district:'Belum diketahui',source:'unknown'};
+}
+function coordinateMatchesRegion(v,lat,lng,displayName=''){
+  lat=Number(lat);lng=Number(lng);if(!Number.isFinite(lat)||!Number.isFinite(lng))return false;
+  const region=inferRegion(v),bounds=REGION_COORD_BOUNDS[region.regency];if(!bounds)return true;
+  const inside=lat>=bounds[0]&&lat<=bounds[1]&&lng>=bounds[2]&&lng<=bounds[3];if(!inside)return false;
+  const text=normalizeAddress(displayName),conflicting=Object.keys(REGION_COORD_BOUNDS).find(name=>name!==region.regency&&text.includes(normalizeAddress(name)));if(conflicting)return false;return !text||text.includes(normalizeAddress(region.regency))||inside;
 }
 function enrichRegions(){vehicles.forEach(v=>{const r=inferRegion(v);v._regency=r.regency;v._district=r.district;v._regionSource=r.source;});}
 function buildRegionFilters(){
@@ -100,7 +129,7 @@ function buildRegionFilters(){
   dist.innerHTML='<option value="">Semua Kecamatan</option>'+districts.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   dist.value=districts.includes(currentDist)?currentDist:'';
 }
-function currentFollowUpStatus(v){return followUps[followUpKey(v)]?.status||'BELUM';}
+function currentFollowUpStatus(v){return getFollowUp(v)?.status||'BELUM';}
 function updateSelectionUi(){
   if($('selectedCount'))$('selectedCount').textContent=`${selectedFollowUps.size} dipilih`;
   if($('filteredCount'))$('filteredCount').textContent=`${filteredVehicles.length} data`;
@@ -138,8 +167,8 @@ function openWaComposer(v,batchMode=false){
 function closeWaComposer(){waComposerVehicle=null;waComposerBatchMode=false;$('waComposerModal').classList.add('hidden');}
 
 function markWaOpened(v){
-  const key=followUpKey(v),old=followUps[key]||{},today=new Date().toISOString().slice(0,10);
-  const rec={...old,plate:v.POLICE_NO||'',customer:v.CUSTOMER||'',model:v.MODEL||'',status:'TERKIRIM',date:today,reason:old.reason||'REMINDER_SERVICE',nextDate:old.nextDate||'',note:old.note||'WhatsApp dibuka dari antrean follow up.',updatedAt:new Date().toISOString()};
+  const key=followUpKey(v),entry=followUpEntry(v),old=entry?.record||{},today=new Date().toISOString().slice(0,10);if(entry&&entry.key!==key)delete followUps[entry.key];
+  const rec={...old,plate:v.POLICE_NO||'',frame:v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO||'',customer:v.CUSTOMER||'',model:v.MODEL||'',status:'TERKIRIM',date:today,reason:old.reason||'REMINDER_SERVICE',nextDate:old.nextDate||'',note:old.note||'WhatsApp dibuka dari antrean follow up.',updatedAt:new Date().toISOString()};
   rec.history=[...(old.history||[]),{status:'TERKIRIM',date:today,reason:rec.reason,nextDate:rec.nextDate,note:'WhatsApp dibuka dari antrean follow up.',savedAt:rec.updatedAt}];
   followUps[key]=rec;saveFollowUps();
 }
@@ -159,7 +188,7 @@ const markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup(
 if(typeof markerLayer.addTo==='function'&&!map.hasLayer?.(markerLayer))markerLayer.addTo(map);
 let markerRenderVersion=0,markersDirty=true;
 
-function hydrateCoordinates(){vehicles.forEach(v=>{const c=geoCache[cacheKey(v.ADDRESS)];if(c){v.lat=Number(c.lat);v.lng=Number(c.lng);v.geocodeFailed=false;}});}
+function hydrateCoordinates(){let invalid=0;vehicles.forEach(v=>{const key=cacheKey(v.ADDRESS),c=geoCache[key],lat=c?Number(c.lat):Number(v.lat),lng=c?Number(c.lng):Number(v.lng),display=c?.displayName||v.GEOCODED_ADDRESS||'';if(Number.isFinite(lat)&&Number.isFinite(lng)&&!coordinateMatchesRegion(v,lat,lng,display)){delete v.lat;delete v.lng;delete v.GEOCODED_ADDRESS;delete v.GEOCODE_QUERY;delete geoCache[key];v.geocodeFailed=false;v.GEOCODE_PRECISION='perlu diproses ulang';v.GEO_VALIDATION='Titik lama dihapus karena berada di luar wilayah alamat.';invalid++;return;}if(c){v.lat=lat;v.lng=lng;v.geocodeFailed=false;}});if(invalid){saveData();saveGeo();setTimeout(()=>{$('status').textContent=`${invalid} titik lama di luar wilayah dihapus. Klik Proses alamat untuk mencari ulang.`;},50);}return invalid;}
 function updateStats(){const mapped=vehicles.filter(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng)).length;const failed=vehicles.filter(v=>v.geocodeFailed===true).length;const pending=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)&&v.geocodeFailed!==true).length;$('totalData').textContent=vehicles.length;$('mappedData').textContent=mapped;$('pendingData').textContent=pending;$('failedData').textContent=failed;}
 function buildAdvisorFilter(){const current=advisorKey($('advisorFilter').value),byKey=new Map();vehicles.forEach(v=>{const name=advisorName(v.SERVICE_ADVISOR);if(name&&!byKey.has(advisorKey(name)))byKey.set(advisorKey(name),name);});const names=[...byKey.values()].sort((a,b)=>a.localeCompare(b,'id'));advisorColorMap=Object.fromEntries(names.map(n=>[advisorKey(n),ADVISOR_COLORS[Math.abs([...advisorKey(n)].reduce((h,c)=>((h*31)+c.charCodeAt(0))|0,7))%ADVISOR_COLORS.length]]));$('advisorFilter').innerHTML='<option value="">Semua Service Advisor</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');const selected=names.find(n=>advisorKey(n)===current)||'';$('advisorFilter').value=selected;renderLegend(names);window.renderDashboard?.();}
 const advisorColor=name=>advisorColorMap[advisorKey(name)]||'#64748b';
@@ -169,7 +198,7 @@ function popupHtml(v){const phone=getPhone(v),q=encodeURIComponent(`${v.lat||''}
 function renderMarkers(){
   markersDirty=false;const version=++markerRenderVersion;markerLayer.clearLayers();markers=[];
   const rows=filteredVehicles.filter(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng)),bounds=rows.map(v=>[v.lat,v.lng]);let index=0;
-  const addChunk=deadline=>{if(version!==markerRenderVersion)return;const batch=[];let count=0;while(index<rows.length&&count<350&&(!deadline||deadline.timeRemaining()>2)){const v=rows[index++],m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).bindPopup(popupHtml(v));m.vehicle=v;markers.push(m);batch.push(m);count++;}if(batch.length)markerLayer.addLayers?markerLayer.addLayers(batch):batch.forEach(m=>markerLayer.addLayer(m));if(index<rows.length){(window.requestIdleCallback||((fn)=>setTimeout(()=>fn({timeRemaining:()=>8}),0)))(addChunk);}else{if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});$('status').textContent=`${rows.length.toLocaleString('id-ID')} marker ditampilkan dalam kelompok.`;}};
+  const addChunk=deadline=>{if(version!==markerRenderVersion)return;const batch=[];let count=0;while(index<rows.length&&count<350&&(!deadline||deadline.timeRemaining()>2)){const v=rows[index++],m=L.marker([v.lat,v.lng],{icon:markerIcon(v.SERVICE_ADVISOR)}).bindPopup(()=>popupHtml(v));m.vehicle=v;markers.push(m);batch.push(m);count++;}if(batch.length)markerLayer.addLayers?markerLayer.addLayers(batch):batch.forEach(m=>markerLayer.addLayer(m));if(index<rows.length){(window.requestIdleCallback||((fn)=>setTimeout(()=>fn({timeRemaining:()=>8}),0)))(addChunk);}else{if(bounds.length===1)map.setView(bounds[0],15);else if(bounds.length>1)map.fitBounds(bounds,{padding:[25,25]});$('status').textContent=`${rows.length.toLocaleString('id-ID')} marker ditampilkan dalam kelompok.`;}};
   addChunk({timeRemaining:()=>8});
 }
 let listPage=1;
@@ -224,8 +253,8 @@ async function importFile(file){
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rawRows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'dd/mm/yyyy'});
   const rows=rawRows.map(normalizeRow).filter(row=>IMPORT_FIELDS.some(field=>hasValue(row[field])));
-  const frameIndex=new Map(),plateIndex=new Map();
-  vehicles.forEach((v,i)=>{const frame=normalizeFrame(v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO),plate=normalizePlate(v.POLICE_NO);if(frame&&!frameIndex.has(frame))frameIndex.set(frame,i);if(plate&&!plateIndex.has(plate))plateIndex.set(plate,i);});
+  const frameIndex=new Map(),plateIndex=new Map(),customerModelIndex=new Map(),addUniqueIndex=(map,key,index)=>{if(!key)return;if(!map.has(key))map.set(key,index);else if(map.get(key)!==index)map.set(key,-1);};
+  vehicles.forEach((v,i)=>{const frame=normalizeFrame(v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO),plate=normalizePlate(v.POLICE_NO),cm=`${identityText(v.CUSTOMER)}|${identityText(v.MODEL)}`;if(frame&&!frameIndex.has(frame))frameIndex.set(frame,i);if(plate&&!plateIndex.has(plate))plateIndex.set(plate,i);addUniqueIndex(customerModelIndex,cm,i);});
   let added=0,updated=0,unchanged=0;
   for(let rowNumber=0;rowNumber<rows.length;rowNumber++){
     const row=rows[rowNumber];row.SERVICE_ADVISOR=advisorName(row.SERVICE_ADVISOR);
@@ -233,17 +262,19 @@ async function importFile(file){
     let index=-1;
     if(frameKey&&frameIndex.has(frameKey))index=frameIndex.get(frameKey);
     if(index<0&&plateKey&&plateIndex.has(plateKey))index=plateIndex.get(plateKey);
+    const customerModelKey=`${identityText(row.CUSTOMER)}|${identityText(row.MODEL)}`,customerModelMatch=customerModelIndex.get(customerModelKey);if(index<0&&Number.isInteger(customerModelMatch)&&customerModelMatch>=0)index=customerModelMatch;
     if(index>=0){
       const before=JSON.stringify(vehicles[index]);
       vehicles[index]=mergeVehicle(vehicles[index],row);
+      const mergedFrame=normalizeFrame(vehicles[index]['NO RANGKA']||vehicles[index].NO_RANGKA||vehicles[index].CHASSIS_NO),mergedPlate=normalizePlate(vehicles[index].POLICE_NO);if(mergedFrame)frameIndex.set(mergedFrame,index);if(mergedPlate)plateIndex.set(mergedPlate,index);addUniqueIndex(customerModelIndex,`${identityText(vehicles[index].CUSTOMER)}|${identityText(vehicles[index].MODEL)}`,index);
       JSON.stringify(vehicles[index])===before?unchanged++:updated++;
     }else{
-      index=vehicles.length;vehicles.push({...Object.fromEntries(IMPORT_FIELDS.map(field=>[field,''])),...row});if(frameKey)frameIndex.set(frameKey,index);if(plateKey)plateIndex.set(plateKey,index);added++;
+      index=vehicles.length;vehicles.push({...Object.fromEntries(IMPORT_FIELDS.map(field=>[field,''])),...row});if(frameKey)frameIndex.set(frameKey,index);if(plateKey)plateIndex.set(plateKey,index);addUniqueIndex(customerModelIndex,customerModelKey,index);added++;
     }
     if((rowNumber+1)%1000===0){$('status').textContent=`Memproses ${(rowNumber+1).toLocaleString('id-ID')} / ${rows.length.toLocaleString('id-ID')} data...`;await sleep(0);}
   }
-  searchIndexCache=new WeakMap();await saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
-  $('status').textContent=`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama. Kolom tambahan diabaikan.`;
+  searchIndexCache=new WeakMap();invalidateFollowUpLookup();const recovered=reconcileFollowUps();await Promise.all([saveData(),recovered?saveFollowUps():Promise.resolve()]);hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
+  $('status').textContent=`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama.${recovered?` ${recovered} status follow up lama dipulihkan.`:''} Kolom tambahan diabaikan.`;
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function geocodeAddress(address){
@@ -251,9 +282,9 @@ async function geocodeAddress(address){
   for(let attempt=0;attempt<5;attempt++){
     if(stopRequested)return null;
     try{
-      const res=await fetch(`/api/geocode?address=${encodeURIComponent(address)}&attempt=${attempt}`),data=await res.json().catch(()=>({}));
+      const res=await fetch(`/api/geocode?address=${encodeURIComponent(address)}&attempt=${attempt}&v=13.2`),data=await res.json().catch(()=>({}));
       if(!res.ok){if(res.status===429||res.status===503){lastError=new Error(data.error||'Layanan alamat sibuk');await sleep(1800);continue;}throw new Error(data.error||'Geocoding gagal');}
-      if(data.found)return{lat:Number(data.lat),lng:Number(data.lng),displayName:data.displayName||'',cleanedAddress:data.cleanedAddress||normalizeAddress(address),queryUsed:data.queryUsed||'',precision:data.precision||'alamat'};
+      if(data.found){const candidate={ADDRESS:address};if(!coordinateMatchesRegion(candidate,Number(data.lat),Number(data.lng),data.displayName||'')){lastError=new Error('Hasil berada di luar wilayah alamat');continue;}return{lat:Number(data.lat),lng:Number(data.lng),displayName:data.displayName||'',cleanedAddress:data.cleanedAddress||normalizeAddress(address),queryUsed:data.queryUsed||'',precision:data.precision||'alamat'};}
       if(attempt<4)await sleep(1150);
     }catch(e){lastError=e;if(attempt<4)await sleep(1800);}
   }
@@ -379,12 +410,12 @@ $('analysisModal').onclick=e=>{if(e.target===$('analysisModal'))$('analysisModal
 
 // ===== Reason Follow Up =====
 function renderFollowUpHistory(history=[]){$('followUpHistory').innerHTML=history.length?[...history].reverse().map(x=>`<div class="follow-up-history-item"><b>${esc(formatFollowUpDate(x.date))} — ${esc(followUpStatusLabel(x.status))}</b><br>Reason: ${esc(followUpReasonLabel(x.reason))}<br>Next: ${esc(formatFollowUpDate(x.nextDate))}<br>Catatan: ${esc(x.note||'-')}</div>`).join(''):'<div class="follow-up-history-empty">Belum ada riwayat follow up.</div>';}
-window.openFollowUp=key=>{const v=vehicles.find(x=>followUpKey(x)===key);if(!v)return alert('Data kendaraan tidak ditemukan.');activeFollowUpVehicle=v;const f=followUps[key];$('followUpVehicleInfo').textContent=`${v.POLICE_NO||'-'} · ${v.MODEL||'-'} · ${v.CUSTOMER||'-'}`;$('followUpStatus').value=f?.status||'BELUM';$('followUpDate').value=f?.date||new Date().toISOString().slice(0,10);$('followUpReason').value=f?.reason||'';$('followUpNextDate').value=f?.nextDate||'';$('followUpNote').value=f?.note||'';renderFollowUpHistory(f?.history||[]);$('followUpModal').classList.remove('hidden');};
+window.openFollowUp=key=>{const v=vehicles.find(x=>followUpKey(x)===key);if(!v)return alert('Data kendaraan tidak ditemukan.');activeFollowUpVehicle=v;const f=getFollowUp(v);$('followUpVehicleInfo').textContent=`${v.POLICE_NO||'-'} · ${v.MODEL||'-'} · ${v.CUSTOMER||'-'}`;$('followUpStatus').value=f?.status||'BELUM';$('followUpDate').value=f?.date||new Date().toISOString().slice(0,10);$('followUpReason').value=f?.reason||'';$('followUpNextDate').value=f?.nextDate||'';$('followUpNote').value=f?.note||'';renderFollowUpHistory(f?.history||[]);$('followUpModal').classList.remove('hidden');};
 function closeFollowUp(){activeFollowUpVehicle=null;$('followUpModal').classList.add('hidden');}
 $('closeFollowUpBtn').onclick=closeFollowUp;$('cancelFollowUpBtn').onclick=closeFollowUp;$('followUpModal').onclick=e=>{if(e.target===$('followUpModal'))closeFollowUp();};
-$('saveFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle),date=$('followUpDate').value,reason=$('followUpReason').value;if(!date)return alert('Tanggal follow up harus diisi.');if(!reason)return alert('Reason follow up harus dipilih.');const old=followUps[key]||{},record={plate:activeFollowUpVehicle.POLICE_NO||'',customer:activeFollowUpVehicle.CUSTOMER||'',model:activeFollowUpVehicle.MODEL||'',status:$('followUpStatus').value,date,reason,nextDate:$('followUpNextDate').value,note:$('followUpNote').value.trim(),updatedAt:new Date().toISOString()};record.history=[...(old.history||[]),{status:record.status,date:record.date,reason:record.reason,nextDate:record.nextDate,note:record.note,savedAt:record.updatedAt}];followUps[key]=record;saveFollowUps();closeFollowUp();applyFilter();alert('Data follow up berhasil disimpan.');};
-$('deleteFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle);if(!followUps[key])return alert('Belum ada data follow up.');if(!confirm('Hapus seluruh data follow up kendaraan ini?'))return;delete followUps[key];saveFollowUps();closeFollowUp();applyFilter();};
-$('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=followUps[followUpKey(v)]||{};const r=inferRegion(v);return {...v,KABUPATEN_TERDETEKSI:r.regency,KECAMATAN_TERDETEKSI:r.district,STATUS_FOLLOW_UP:followUpStatusLabel(f.status||'BELUM'),TANGGAL_FOLLOW_UP:f.date||'',REASON_FOLLOW_UP:followUpReasonLabel(f.reason),FOLLOW_UP_BERIKUTNYA:f.nextDate||'',CATATAN_FOLLOW_UP:f.note||''};});if(!rows.length)return alert('Belum ada data kendaraan.');const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Kendaraan Follow Up');XLSX.writeFile(wb,`data-kendaraan-follow-up-${new Date().toISOString().slice(0,10)}.xlsx`);};
+$('saveFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const key=followUpKey(activeFollowUpVehicle),entry=followUpEntry(activeFollowUpVehicle),date=$('followUpDate').value,reason=$('followUpReason').value;if(!date)return alert('Tanggal follow up harus diisi.');if(!reason)return alert('Reason follow up harus dipilih.');const old=entry?.record||{};if(entry&&entry.key!==key)delete followUps[entry.key];const record={plate:activeFollowUpVehicle.POLICE_NO||'',frame:activeFollowUpVehicle['NO RANGKA']||activeFollowUpVehicle.NO_RANGKA||activeFollowUpVehicle.CHASSIS_NO||'',customer:activeFollowUpVehicle.CUSTOMER||'',model:activeFollowUpVehicle.MODEL||'',status:$('followUpStatus').value,date,reason,nextDate:$('followUpNextDate').value,note:$('followUpNote').value.trim(),updatedAt:new Date().toISOString()};record.history=[...(old.history||[]),{status:record.status,date:record.date,reason:record.reason,nextDate:record.nextDate,note:record.note,savedAt:record.updatedAt}];followUps[key]=record;saveFollowUps();closeFollowUp();applyFilter();alert('Data follow up berhasil disimpan.');};
+$('deleteFollowUpBtn').onclick=()=>{if(!activeFollowUpVehicle)return;const entry=followUpEntry(activeFollowUpVehicle);if(!entry)return alert('Belum ada data follow up.');if(!confirm('Hapus seluruh data follow up kendaraan ini?'))return;delete followUps[entry.key];delete followUps[followUpKey(activeFollowUpVehicle)];saveFollowUps();closeFollowUp();applyFilter();};
+$('downloadFollowUpBtn').onclick=()=>{const rows=vehicles.map(v=>{const f=getFollowUp(v)||{};const r=inferRegion(v);return {...v,KABUPATEN_TERDETEKSI:r.regency,KECAMATAN_TERDETEKSI:r.district,STATUS_FOLLOW_UP:followUpStatusLabel(f.status||'BELUM'),TANGGAL_FOLLOW_UP:f.date||'',REASON_FOLLOW_UP:followUpReasonLabel(f.reason),FOLLOW_UP_BERIKUTNYA:f.nextDate||'',CATATAN_FOLLOW_UP:f.note||''};});if(!rows.length)return alert('Belum ada data kendaraan.');const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Kendaraan Follow Up');XLSX.writeFile(wb,`data-kendaraan-follow-up-${new Date().toISOString().slice(0,10)}.xlsx`);};
 
 
 // ===== V8: Template WhatsApp editable, pencarian, preview, test WA, backup =====

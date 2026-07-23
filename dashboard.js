@@ -44,7 +44,7 @@
       if(adv&&advisorKey(v.SERVICE_ADVISOR)!==advisorKey(adv))return false;
       if(reg&&v._regency!==reg)return false;
       if(dist&&v._district!==dist)return false;
-      if(cutoff){const f=followUps[followUpKey(v)],d=asDate(f?.updatedAt||f?.date);if(!d||d<cutoff)return false;}
+      if(cutoff){const f=getFollowUp(v),d=asDate(f?.updatedAt||f?.date);if(!d||d<cutoff)return false;}
       return true;
     });
   }
@@ -75,7 +75,7 @@
   }
 
   function renderTrend(rows){
-    const activity=new Map();rows.forEach(v=>{const f=followUps[followUpKey(v)];(f?.history||[]).forEach(h=>{const d=String(h.date||h.savedAt||'').slice(0,10);if(d)activity.set(d,(activity.get(d)||0)+1);});if(f?.date&&!f?.history?.length){const d=String(f.date).slice(0,10);activity.set(d,(activity.get(d)||0)+1);}});
+    const activity=new Map();rows.forEach(v=>{const f=getFollowUp(v);(f?.history||[]).forEach(h=>{const d=String(h.date||h.savedAt||'').slice(0,10);if(d)activity.set(d,(activity.get(d)||0)+1);});if(f?.date&&!f?.history?.length){const d=String(f.date).slice(0,10);activity.set(d,(activity.get(d)||0)+1);}});
     const labels=[...activity.keys()].sort().slice(-14);if(!labels.length){$('trendChart').innerHTML='<div class="empty-chart">Grafik akan muncul setelah status follow up mulai disimpan.</div>';return;}
     const values=labels.map(d=>activity.get(d)||0);let cumulative=0;const totals=values.map(v=>cumulative+=v),max=Math.max(1,...totals),w=900,h=220,pad=28;
     const pts=(arr)=>arr.map((v,i)=>`${pad+(labels.length===1?0:i*(w-pad*2)/(labels.length-1))},${h-pad-v/max*(h-pad*2)}`).join(' ');

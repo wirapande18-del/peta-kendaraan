@@ -24,7 +24,9 @@ const DISTRICT_TO_REGENCY = {
   NEGARA:'Jembrana', MELAYA:'Jembrana', MENDOYO:'Jembrana', PEKUTATAN:'Jembrana', JEMBRANA:'Jembrana',
   // Buleleng
   BULELENG:'Buleleng', GEROKGAK:'Buleleng', SERIRIT:'Buleleng', BUSUNGBIU:'Buleleng',
-  BANJAR:'Buleleng', SUKASADA:'Buleleng', SAWAN:'Buleleng', KUBUTAMBAHAN:'Buleleng', TEJAKULA:'Buleleng'
+  BANJAR:'Buleleng', SUKASADA:'Buleleng', SAWAN:'Buleleng', KUBUTAMBAHAN:'Buleleng', TEJAKULA:'Buleleng',
+  // Kota Denpasar
+  DENPASAR_SELATAN:'Denpasar', DENPASAR_TIMUR:'Denpasar', DENPASAR_BARAT:'Denpasar', DENPASAR_UTARA:'Denpasar'
 };
 
 const PLACE_HINTS = {
@@ -33,7 +35,20 @@ const PLACE_HINTS = {
   CELUK:['Sukawati','Gianyar'], GUWANG:['Sukawati','Gianyar'], MAS:['Ubud','Gianyar'],
   KUTRI:['Blahbatuh','Gianyar'], PELIATAN:['Ubud','Gianyar'],
   PERING_SARI:['Selat','Karangasem'], YANGAPI:['Tembuku','Bangli'], PENINJOAN:['Tembuku','Bangli'],
-  PENGOTAN:['Bangli','Bangli'], KUBUTAMBAHAN:['Kubutambahan','Buleleng']
+  PENGOTAN:['Bangli','Bangli'], KUBUTAMBAHAN:['Kubutambahan','Buleleng'],
+  PEGUYANGAN_KANGIN:['Denpasar Utara','Denpasar'], PEGUYANGAN:['Denpasar Utara','Denpasar'],
+  ANTASURA:['Denpasar Utara','Denpasar'], TONJA:['Denpasar Utara','Denpasar'], UBUNG:['Denpasar Utara','Denpasar'],
+  KESIMAN:['Denpasar Timur','Denpasar'], PENATIH:['Denpasar Timur','Denpasar'],
+  SANUR:['Denpasar Selatan','Denpasar'], SESETAN:['Denpasar Selatan','Denpasar'],
+  PEMECUTAN:['Denpasar Barat','Denpasar'], PADANGSAMBIAN:['Denpasar Barat','Denpasar']
+};
+
+const AREA_BOUNDS = {
+  DENPASAR:[-8.80,-8.50,115.05,115.34], GIANYAR:[-8.76,-8.05,115.15,115.58],
+  BADUNG:[-8.92,-8.05,114.95,115.33], TABANAN:[-8.88,-8.05,114.70,115.27],
+  JEMBRANA:[-8.68,-8.00,114.35,114.98], BULELENG:[-8.45,-7.95,114.35,115.55],
+  BANGLI:[-8.62,-8.02,115.16,115.58], KLUNGKUNG:[-8.92,-8.30,115.25,115.75],
+  KARANGASEM:[-8.68,-8.00,115.35,115.78]
 };
 
 function cleanAddress(input) {
@@ -125,7 +140,31 @@ function buildQueries(address) {
   return [...new Set(queries.map(q => q.replace(/,\s*,/g, ',').trim()).filter(q => q.length > 8))];
 }
 
-async function searchNominatim(query) {
+function hitText(hit) {
+  return [hit.display_name,...Object.values(hit.address||{})].join(' ').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+}
+
+function hitMatchesArea(hit, expected={}) {
+  const lat=Number(hit.lat),lon=Number(hit.lon),regency=String(expected.regency||'').toUpperCase();
+  if (!(lat >= -8.95 && lat <= -8.0 && lon >= 114.35 && lon <= 115.78)) return false;
+  if (!regency) return true;
+  const bounds=AREA_BOUNDS[regency];
+  if(bounds&&!(lat>=bounds[0]&&lat<=bounds[1]&&lon>=bounds[2]&&lon<=bounds[3]))return false;
+  const text=hitText(hit);
+  const conflicting=Object.keys(AREA_BOUNDS).find(name=>name!==regency&&text.includes(name));if(conflicting)return false;
+  if(text.includes(regency))return true;
+  // Beberapa hasil OSM tidak menulis kabupaten, tetapi koordinat di dalam batas yang diketahui tetap aman.
+  return Boolean(bounds);
+}
+
+function hitScore(hit,expected={}) {
+  const text=hitText(hit),district=String(expected.district||'').toUpperCase(),regency=String(expected.regency||'').toUpperCase();
+  let score=0;if(regency&&text.includes(regency))score+=5;if(district&&text.includes(district))score+=4;
+  if(hit.address?.road||hit.address?.pedestrian)score+=3;if(hit.address?.house_number)score+=2;
+  if(['house','building','residential','road'].includes(hit.type))score+=2;return score;
+}
+
+async function searchNominatim(query, expected) {
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('format', 'jsonv2');
   url.searchParams.set('limit', '5');
@@ -144,34 +183,35 @@ async function searchNominatim(query) {
   if (!response.ok) throw new Error(`Layanan alamat sedang sibuk (${response.status})`);
   const data = await response.json();
   if (!Array.isArray(data) || !data.length) return null;
-  return data.find(x => {
-    const lat = Number(x.lat), lon = Number(x.lon);
-    return lat >= -8.95 && lat <= -8.0 && lon >= 114.35 && lon <= 115.75;
-  }) || null;
+  return data.filter(x=>hitMatchesArea(x,expected)).sort((a,b)=>hitScore(b,expected)-hitScore(a,expected))[0]||null;
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Cache-Control', 's-maxage=604800, stale-while-revalidate=2592000');
+  res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method tidak diizinkan' });
   const original = String(req.query.address || '').trim();
   const attempt = Math.max(0, Math.min(4, Number(req.query.attempt || 0)));
   if (!original) return res.status(400).json({ error: 'Alamat wajib diisi' });
   const cleaned = cleanAddress(original);
+  const expected = inferArea(cleaned);
   const queries = buildQueries(cleaned);
   const query = queries[attempt];
   if (!query) return res.status(200).json({ found: false, cleanedAddress: titleCase(cleaned), attempts: queries.length });
   try {
-    const hit = await searchNominatim(query);
+    const hit = await searchNominatim(query,expected);
     if (!hit) return res.status(200).json({ found: false, cleanedAddress: titleCase(cleaned), queryUsed: query, attempt, attempts: queries.length });
     const precision = attempt <= 1 ? 'alamat' : attempt <= 3 ? 'wilayah' : 'kabupaten';
     return res.status(200).json({
       found: true, lat: Number(hit.lat), lng: Number(hit.lon), displayName: hit.display_name || '',
-      cleanedAddress: titleCase(cleaned), queryUsed: query, attempt, attempts: queries.length, precision
+      cleanedAddress: titleCase(cleaned), queryUsed: query, attempt, attempts: queries.length, precision,
+      expectedRegency: expected.regency||'', expectedDistrict: expected.district||''
     });
   } catch (error) {
     return res.status(503).json({ error: error.message || 'Tidak dapat terhubung ke layanan alamat', retryable: true });
   }
 };
+
+module.exports._test={cleanAddress,inferArea,buildQueries,hitMatchesArea,hitScore};
