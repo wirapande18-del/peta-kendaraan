@@ -1,6 +1,6 @@
 {
   "name": "peta-kendaraan-service",
-  "version": "13.4.0",
+  "version": "13.5.0",
   "private": true,
   "scripts": {
     "dev": "vercel dev"

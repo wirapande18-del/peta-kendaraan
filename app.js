@@ -1,4 +1,4 @@
-const APP_VERSION='13.4.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='13.5.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -361,14 +361,32 @@ function closeLocationEditor(){
 }
 window.openLocationEditor=key=>{
   const v=vehicles.find(x=>followUpKey(x)===key)||vehicles.find(x=>normalizePlate(x.POLICE_NO)===normalizePlate(key));if(!v)return alert('Data kendaraan tidak ditemukan.');
-  locationEditVehicle=v;map.closePopup();$('locationVehicleInfo').textContent=`${v.POLICE_NO||'-'} · ${v.CUSTOMER||'-'}`;$('locationSearchInput').value=v.ADDRESS||'';$('locationSearchResults').innerHTML='';$('locationSearchStatus').textContent='Ketik alamat lebih lengkap lalu klik Cari.';$('locationModal').classList.remove('hidden');
+  locationEditVehicle=v;map.closePopup();$('locationVehicleInfo').textContent=`${v.POLICE_NO||'-'} · ${v.CUSTOMER||'-'}`;$('locationSearchInput').value=v.ADDRESS||'';$('locationSearchResults').innerHTML='';$('locationSearchStatus').textContent='Masukkan alamat, link Google Maps, atau koordinat lalu klik Cari / Gunakan.';$('locationModal').classList.remove('hidden');
   const m=ensureLocationMap();setTimeout(()=>{m.invalidateSize();if(Number.isFinite(Number(v.lat))&&Number.isFinite(Number(v.lng)))setLocationCandidate({lat:Number(v.lat),lng:Number(v.lng),displayName:'Titik kendaraan saat ini'});else{m.setView([-8.4095,115.1889],9);updateLocationMarkerText('');}},80);
 };
+function decodeLocationInput(value){try{return decodeURIComponent(String(value||'').replace(/\+/g,' '));}catch(_){return String(value||'').replace(/\+/g,' ');}}
+function extractCoordinates(value){
+  const text=decodeLocationInput(value),patterns=[/@\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/i,/(?:query|q|ll|destination)\s*=\s*(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)/i,/(?:^|[^\d.-])(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)(?:[^\d.]|$)/];
+  for(const pattern of patterns){const hit=text.match(pattern);if(!hit)continue;let a=Number(hit[1]),b=Number(hit[2]),lat=a,lng=b;if(Math.abs(a)>90&&Math.abs(b)<=90){lat=b;lng=a;}if(Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng};}
+  return null;
+}
+function googlePlaceQuery(value){
+  const text=String(value||'').trim();if(!/^https?:\/\//i.test(text))return '';
+  try{const u=new URL(text),path=decodeLocationInput(u.pathname),place=path.match(/\/place\/([^/]+)/i);if(place&&place[1])return place[1].replace(/\s+/g,' ').trim();const q=u.searchParams.get('query')||u.searchParams.get('q');return q&&!extractCoordinates(q)?decodeLocationInput(q):'';}catch(_){return '';}
+}
+function coordinateInsideBali(point){return point&&point.lat>=-8.95&&point.lat<=-8.0&&point.lng>=114.35&&point.lng<=115.78;}
 async function searchLocation(){
-  const query=$('locationSearchInput').value.trim();if(query.length<3)return alert('Masukkan nama alamat atau tempat minimal 3 huruf.');
+  const input=$('locationSearchInput').value.trim();if(input.length<3)return alert('Masukkan alamat, link Google Maps, atau koordinat.');
+  const directPoint=extractCoordinates(input);
+  if(directPoint){
+    if(!coordinateInsideBali(directPoint)){$('locationSearchStatus').textContent='Koordinat terbaca, tetapi berada di luar wilayah Bali. Periksa kembali angka latitude dan longitude.';return;}
+    locationResults=[];$('locationSearchResults').innerHTML='';setLocationCandidate({...directPoint,displayName:'Koordinat dari Google Maps / input manual'},-1);$('locationSearchStatus').textContent='Koordinat berhasil dibaca. Periksa marker, lalu klik Simpan Titik Ini.';return;
+  }
+  let query=googlePlaceQuery(input)||input;
+  if(/^https?:\/\//i.test(input)&&query===input){$('locationSearchStatus').textContent='Link pendek belum memuat koordinat. Buka link Google Maps, lalu salin link lengkap atau salin angka koordinatnya.';return;}
   const btn=$('locationSearchBtn');btn.disabled=true;$('locationSearchStatus').textContent='Mencari lokasi...';$('locationSearchResults').innerHTML='';
   try{
-    const res=await fetch(`/api/geocode?mode=search&address=${encodeURIComponent(query)}&v=13.4`),data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Pencarian gagal.');
+    const res=await fetch(`/api/geocode?mode=search&address=${encodeURIComponent(query)}&v=13.5`),data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Pencarian gagal.');
     locationResults=Array.isArray(data.results)?data.results:[];
     if(!locationResults.length){$('locationSearchStatus').textContent='Lokasi belum ditemukan. Tambahkan desa, kecamatan, kabupaten, dan Bali.';return;}
     $('locationSearchStatus').textContent=`Ditemukan ${locationResults.length} pilihan. Klik hasil yang benar, lalu marker masih bisa digeser.`;

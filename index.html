@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=13-4-20260723-1" />
+  <link rel="stylesheet" href="style.css?v=13-5-20260723-1" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="storage.js?v=13-4-20260723-1"></script>
-  <script src="data.js?v=13-4-20260723-1"></script>
+  <script src="storage.js?v=13-5-20260723-1"></script>
+  <script src="data.js?v=13-5-20260723-1"></script>
 </head>
 <body class="view-dashboard">
 <aside class="main-nav" id="mainNav">
@@ -32,7 +32,7 @@
     <div><h1 id="pageTitle">Dashboard Follow Up</h1><p id="pageSubtitle">Pantau performa follow up service kendaraan Anda</p></div>
   </div>
   <div class="header-right">
-    <span id="versionBadge" class="version-badge">Versi 13.4</span>
+    <span id="versionBadge" class="version-badge">Versi 13.5</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -166,9 +166,9 @@
   <div class="modal-box location-modal-box">
     <div class="modal-head"><div><h2>Cari Lokasi &amp; Pindahkan Titik</h2><small id="locationVehicleInfo">-</small></div><button id="closeLocationBtn" class="icon-btn" type="button">×</button></div>
     <label>Cari alamat, tempat, jalan, atau desa
-      <div class="location-search-row"><input id="locationSearchInput" placeholder="Contoh: Keramas, Blahbatuh, Gianyar"><button id="locationSearchBtn" type="button">Cari</button></div>
+      <div class="location-search-row"><input id="locationSearchInput" placeholder="Alamat, link Google Maps, atau -8.4302, 115.3316"><button id="locationSearchBtn" type="button">Cari / Gunakan</button></div>
     </label>
-    <small>Tambahkan desa, kecamatan, kabupaten, dan Bali agar hasil lebih tepat.</small>
+    <small>Bisa memakai alamat lengkap, link Google Maps, atau angka latitude dan longitude.</small>
     <div id="locationSearchStatus" class="location-search-status"></div>
     <div id="locationSearchResults" class="location-search-results"></div>
     <div id="locationMiniMap" class="location-mini-map"></div>
@@ -292,7 +292,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13-4-20260723-1"></script>
-<script src="dashboard.js?v=13-4-20260723-1"></script>
+<script src="app.js?v=13-5-20260723-1"></script>
+<script src="dashboard.js?v=13-5-20260723-1"></script>
 </body>
 </html>
