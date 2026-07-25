@@ -123,7 +123,8 @@
       }
       clearDirty(types);
       setStatus('online','Tersimpan online');
-      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.4.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      const mainStatus=$('status'),terminal=/^(Sesi selesai|Proses dihentikan)/.test(mainStatus?.textContent||'');
+      if(mainStatus&&(changed||removed)&&!window.PETA_GEOCODING_ACTIVE&&!terminal)mainStatus.textContent=`Versi ${window.PETA_APP_VERSION||'14.6.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
     }catch(error){
       types.forEach(type=>pending.add(type));
       console.warn('Sinkronisasi Supabase gagal:',error);
