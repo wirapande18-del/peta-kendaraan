@@ -1,4 +1,4 @@
-const APP_VERSION='14.3.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='14.4.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -308,7 +308,7 @@ async function importFile(file){
     }else{
       index=vehicles.length;vehicles.push({...Object.fromEntries(IMPORT_FIELDS.map(field=>[field,''])),...row});if(frameKey)frameIndex.set(frameKey,index);if(plateKey)plateIndex.set(plateKey,index);addUniqueIndex(customerModelIndex,customerModelKey,index);added++;
     }
-    if((rowNumber+1)%1000===0){$('status').textContent=`Memproses ${(rowNumber+1).toLocaleString('id-ID')} / ${rows.length.toLocaleString('id-ID')} data...`;await sleep(0);}
+    if((rowNumber+1)%500===0){$('status').textContent=`Memproses ${(rowNumber+1).toLocaleString('id-ID')} / ${rows.length.toLocaleString('id-ID')} data...`;await sleep(0);}
   }
   searchIndexCache=new WeakMap();invalidateFollowUpLookup();const recovered=reconcileFollowUps();await Promise.all([saveData(),recovered?saveFollowUps():Promise.resolve()]);hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
   $('status').textContent=`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama.${recovered?` ${recovered} status follow up lama dipulihkan.`:''} Kolom tambahan diabaikan.`;
@@ -330,26 +330,29 @@ async function geocodeAddress(address){
 }
 async function processVehicle(v){
   const original=String(v.ADDRESS||'').trim(),key=cacheKey(original);if(!original){v.geocodeFailed=true;v.GEOCODE_ERROR='Alamat kosong';return false;}
-  if(geoCache[key]){Object.assign(v,geoCache[key]);v.geocodeFailed=false;return true;}
+  if(geoCache[key]){Object.assign(v,geoCache[key]);v.geocodeFailed=false;return{success:true,source:'cache'};}
   const r=await geocodeAddress(original);
   if(!r){v.geocodeFailed=true;v.GEOCODE_ERROR='Tidak ditemukan setelah 5 percobaan';return false;}
   v.lat=r.lat;v.lng=r.lng;v.geocodeFailed=false;delete v.GEOCODE_ERROR;v.GEOCODED_ADDRESS=r.displayName;v.GEOCODE_QUERY=r.queryUsed;v.GEOCODE_PRECISION=r.precision;
-  geoCache[key]={lat:r.lat,lng:r.lng,displayName:r.displayName,queryUsed:r.queryUsed,precision:r.precision,manual:false};return true;
+  geoCache[key]={lat:r.lat,lng:r.lng,displayName:r.displayName,queryUsed:r.queryUsed,precision:r.precision,manual:false};return{success:true,source:'network'};
 }
 $('startGeocodeBtn').onclick=async()=>{
   stopRequested=false;let cleanedCount=0;
   for(let i=0;i<vehicles.length;i++){const v=vehicles[i];if(v.ADDRESS&&!Number.isFinite(v.lat)){const r=cleanAddressSmart(v.ADDRESS);if(r.cleaned&&r.cleaned!==v.ADDRESS){v.ORIGINAL_ADDRESS=v.ORIGINAL_ADDRESS||v.ADDRESS;v.CLEANED_ADDRESS=r.cleaned;v.ADDRESS=r.cleaned;v.ADDRESS_CONFIDENCE=r.confidence;v.ADDRESS_STATUS=r.status;v.geocodeFailed=false;cleanedCount++;}}if((i+1)%500===0){$('status').textContent=`Menyiapkan alamat ${(i+1).toLocaleString('id-ID')} / ${vehicles.length.toLocaleString('id-ID')}...`;await sleep(0);}}
   searchIndexCache=new WeakMap();await saveData();const allTodo=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)),batchValue=$('geocodeBatchSize')?.value||'250',limit=batchValue==='all'?allTodo.length:Number(batchValue),todo=allTodo.slice(0,limit),total=todo.length;let ok=0,failed=0;
   if(!total){$('status').textContent='Semua alamat sudah selesai diproses.';return;}
+  let cacheHits=0;
   for(let i=0;i<total;i++){
     if(stopRequested)break;const v=todo[i];$('status').textContent=`Proses alamat ${(i+1).toLocaleString('id-ID')} / ${total.toLocaleString('id-ID')}: ${v.POLICE_NO}`;
-    try{const success=await processVehicle(v);success?ok++:failed++;}catch(e){v.geocodeFailed=true;v.GEOCODE_ERROR=e.message||'Gagal';failed++;}
+    let usedNetwork=true;
+    try{const result=await processVehicle(v);if(result?.success){ok++;usedNetwork=result.source!=='cache';if(!usedNetwork)cacheHits++;}else failed++;}catch(e){v.geocodeFailed=true;v.GEOCODE_ERROR=e.message||'Gagal';failed++;}
     if((i+1)%10===0)updateStats();
     if((i+1)%50===0){await Promise.all([saveData(),saveGeo()]);$('status').textContent+=` · checkpoint tersimpan`;}
     if((i+1)%250===0){enrichRegions();window.renderDashboard?.();await sleep(0);}
-    await sleep(1050);
+    // Alamat yang sama memakai cache dan tidak perlu menunggu satu detik lagi.
+    if(usedNetwork)await sleep(1050);else if((i+1)%100===0)await sleep(0);
   }
-  await Promise.all([saveData(),saveGeo()]);applyFilter();const remaining=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)).length;$('status').textContent=stopRequested?`Proses dihentikan dengan aman. Berhasil ${ok}, gagal ${failed}. Tersisa ${remaining.toLocaleString('id-ID')} alamat.`:`Sesi selesai: ${ok} berhasil, ${failed} gagal. Tersisa ${remaining.toLocaleString('id-ID')} alamat. ${cleanedCount} alamat diperbaiki otomatis.`;
+  await Promise.all([saveData(),saveGeo()]);applyFilter();const remaining=vehicles.filter(v=>v.ADDRESS&&!Number.isFinite(v.lat)).length;$('status').textContent=stopRequested?`Proses dihentikan dengan aman. Berhasil ${ok}, gagal ${failed}. Tersisa ${remaining.toLocaleString('id-ID')} alamat.`:`Sesi selesai: ${ok} berhasil (${cacheHits} dari alamat yang sama), ${failed} gagal. Tersisa ${remaining.toLocaleString('id-ID')} alamat. ${cleanedCount} alamat diperbaiki otomatis.`;
 };
 function failedVehicles(){return vehicles.filter(v=>v.geocodeFailed===true);}
 function renderFailedList(){const rows=failedVehicles();$('failedList').innerHTML=rows.length?rows.map(v=>`<div class="failed-item" data-plate="${esc(normalizePlate(v.POLICE_NO))}"><b>${esc(v.POLICE_NO||'-')} · ${esc(v.CUSTOMER||'-')}</b><span>${esc(v.ADDRESS||'-')}</span>${v.GEOCODE_PRECISION?`<span>Ketepatan: ${esc(v.GEOCODE_PRECISION)}</span>`:''}</div>`).join(''):'<small>Tidak ada alamat gagal.</small>';$('failedList').querySelectorAll('.failed-item').forEach(el=>el.onclick=()=>openAddressEditor(vehicles.find(v=>normalizePlate(v.POLICE_NO)===el.dataset.plate)));}

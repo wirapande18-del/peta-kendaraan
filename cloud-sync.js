@@ -7,7 +7,7 @@
     settings:'app_settings'
   };
   const PAGE_SIZE=1000;
-  const WRITE_BATCH=400;
+  const WRITE_BATCH=800;
   const DELETE_BATCH=200;
   const DIRTY_KEY='petaCloudDirtyV14';
   const known={vehicles:new Map(),followUps:new Map(),geoCache:new Map(),settings:new Map()};
@@ -91,7 +91,10 @@
     const table=TABLES[type],rows=currentRows(type),map=known[type],currentKeys=new Set(rows.map(row=>row.record_key));
     const changed=rows.filter(row=>force||map.get(row.record_key)!==hash(row.payload));
     const removed=[...map.keys()].filter(key=>!currentKeys.has(key));
-    for(const batch of chunks(changed,WRITE_BATCH)){
+    const writeChunks=chunks(changed,WRITE_BATCH);
+    for(let batchIndex=0;batchIndex<writeChunks.length;batchIndex++){
+      const batch=writeChunks[batchIndex];
+      if(writeChunks.length>1)setStatus('syncing',`Menyimpan ${Math.min((batchIndex+1)*WRITE_BATCH,changed.length).toLocaleString('id-ID')} / ${changed.length.toLocaleString('id-ID')}...`);
       const now=new Date().toISOString();
       const payload=batch.map(row=>({...row,updated_at:now}));
       const {error}=await client.from(table).upsert(payload,{onConflict:'record_key'});
@@ -120,7 +123,7 @@
       }
       clearDirty(types);
       setStatus('online','Tersimpan online');
-      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.3.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      if($('status')&&(changed||removed))$('status').textContent=`Versi ${window.PETA_APP_VERSION||'14.4.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
     }catch(error){
       types.forEach(type=>pending.add(type));
       console.warn('Sinkronisasi Supabase gagal:',error);
