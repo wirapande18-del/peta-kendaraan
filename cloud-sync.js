@@ -13,7 +13,7 @@
   const DIRTY_TIME_KEY='petaCloudDirtyTimeV14';
   const DIRTY_MAX_AGE=10*60*1000;
   const known={vehicles:new Map(),followUps:new Map(),geoCache:new Map(),settings:new Map()};
-  let client=null,session=null,started=false,syncing=false,pullTimer=null,flushTimer=null;
+  let client=null,session=null,started=false,syncing=false,starting=false,pullTimer=null,flushTimer=null;
   const pending=new Set();
   const $=id=>document.getElementById(id);
   const hash=value=>JSON.stringify(value??null);
@@ -23,7 +23,15 @@
   function writeDirty(set){try{localStorage.setItem(DIRTY_KEY,JSON.stringify([...set]));}catch(_){}}
   function markDirty(type){const dirty=readDirty();dirty.add(type);writeDirty(dirty);try{localStorage.setItem(DIRTY_TIME_KEY,String(Date.now()));}catch(_){}}
   function clearDirty(types){const dirty=readDirty();types.forEach(type=>dirty.delete(type));writeDirty(dirty);if(!dirty.size)try{localStorage.removeItem(DIRTY_TIME_KEY);}catch(_){}}
-  function freshDirty(){const dirty=freshDirty();const time=Number(localStorage.getItem(DIRTY_TIME_KEY)||0);if(!dirty.length)return [];if(time&&Date.now()-time<=DIRTY_MAX_AGE)return dirty;clearDirty(dirty);return [];}
+  function freshDirty(){
+    const dirty=[...readDirty()].filter(type=>TABLES[type]);
+    let time=0;
+    try{time=Number(localStorage.getItem(DIRTY_TIME_KEY)||0);}catch(_){}
+    if(!dirty.length)return [];
+    if(time&&Date.now()-time<=DIRTY_MAX_AGE)return dirty;
+    clearDirty(dirty);
+    return [];
+  }
 
   function setStatus(kind,text){
     const badge=$('cloudStatusBadge');
@@ -128,7 +136,7 @@
       clearDirty(types);
       setStatus('online','Tersimpan online');
       const mainStatus=$('status'),terminal=/^(Sesi selesai|Proses dihentikan)/.test(mainStatus?.textContent||'');
-      if(mainStatus&&(changed||removed)&&!window.PETA_GEOCODING_ACTIVE&&!terminal)mainStatus.textContent=`Versi ${window.PETA_APP_VERSION||'14.7.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      if(mainStatus&&(changed||removed)&&!window.PETA_GEOCODING_ACTIVE&&!terminal)mainStatus.textContent=`Versi ${window.PETA_APP_VERSION||'14.8.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
       return true;
     }catch(error){
       types.forEach(type=>pending.add(type));
@@ -194,7 +202,8 @@
     session=nextSession;
     if(!session){showLogin(true);setStatus('offline','Belum login');setUser('');return;}
     showLogin(false);setUser(session.user?.email||'Pengguna');
-    if(started)return;
+    if(started||starting)return;
+    starting=true;
     started=true;
     try{
       await initialSync();
@@ -206,6 +215,8 @@
       const missing=/relation|does not exist|schema cache/i.test(error.message||'');
       setStatus('error',missing?'Tabel Supabase belum dibuat':'Koneksi Supabase gagal');
       if($('status'))$('status').textContent=missing?'Jalankan file SETUP-SUPABASE-V14.sql di SQL Editor Supabase terlebih dahulu.':`Supabase gagal: ${error.message||'Periksa koneksi.'}`;
+    }finally{
+      starting=false;
     }
   }
   async function init(){
@@ -220,7 +231,7 @@
     client.auth.onAuthStateChange((_event,nextSession)=>{
       if(nextSession?.access_token===session?.access_token)return;
       if(!nextSession)started=false;
-      startCloudSession(nextSession);
+      void startCloudSession(nextSession);
     });
     $('cloudLoginForm')?.addEventListener('submit',async event=>{
       event.preventDefault();
