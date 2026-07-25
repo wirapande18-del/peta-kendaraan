@@ -10,6 +10,8 @@
   const WRITE_BATCH=800;
   const DELETE_BATCH=200;
   const DIRTY_KEY='petaCloudDirtyV14';
+  const DIRTY_TIME_KEY='petaCloudDirtyTimeV14';
+  const DIRTY_MAX_AGE=10*60*1000;
   const known={vehicles:new Map(),followUps:new Map(),geoCache:new Map(),settings:new Map()};
   let client=null,session=null,started=false,syncing=false,pullTimer=null,flushTimer=null;
   const pending=new Set();
@@ -19,8 +21,9 @@
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   function readDirty(){try{return new Set(JSON.parse(localStorage.getItem(DIRTY_KEY)||'[]'));}catch(_){return new Set();}}
   function writeDirty(set){try{localStorage.setItem(DIRTY_KEY,JSON.stringify([...set]));}catch(_){}}
-  function markDirty(type){const dirty=readDirty();dirty.add(type);writeDirty(dirty);}
-  function clearDirty(types){const dirty=readDirty();types.forEach(type=>dirty.delete(type));writeDirty(dirty);}
+  function markDirty(type){const dirty=readDirty();dirty.add(type);writeDirty(dirty);try{localStorage.setItem(DIRTY_TIME_KEY,String(Date.now()));}catch(_){}}
+  function clearDirty(types){const dirty=readDirty();types.forEach(type=>dirty.delete(type));writeDirty(dirty);if(!dirty.size)try{localStorage.removeItem(DIRTY_TIME_KEY);}catch(_){}}
+  function freshDirty(){const dirty=freshDirty();const time=Number(localStorage.getItem(DIRTY_TIME_KEY)||0);if(!dirty.length)return [];if(time&&Date.now()-time<=DIRTY_MAX_AGE)return dirty;clearDirty(dirty);return [];}
 
   function setStatus(kind,text){
     const badge=$('cloudStatusBadge');
@@ -109,11 +112,12 @@
     return {changed:changed.length,removed:removed.length};
   }
   async function flush(forceTypes=null){
-    if(!session||syncing)return;
+    if(!session)return false;
+    if(syncing){for(let i=0;i<100&&syncing;i++)await sleep(50);if(syncing)return false;}
     syncing=true;
-    const types=forceTypes||[...pending];
+    const types=forceTypes||[...new Set([...pending,...freshDirty()])];
     types.forEach(type=>pending.delete(type));
-    if(!types.length){syncing=false;return;}
+    if(!types.length){syncing=false;return true;}
     setStatus('syncing','Menyimpan...');
     try{
       let changed=0,removed=0;
@@ -124,11 +128,13 @@
       clearDirty(types);
       setStatus('online','Tersimpan online');
       const mainStatus=$('status'),terminal=/^(Sesi selesai|Proses dihentikan)/.test(mainStatus?.textContent||'');
-      if(mainStatus&&(changed||removed)&&!window.PETA_GEOCODING_ACTIVE&&!terminal)mainStatus.textContent=`Versi ${window.PETA_APP_VERSION||'14.6.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      if(mainStatus&&(changed||removed)&&!window.PETA_GEOCODING_ACTIVE&&!terminal)mainStatus.textContent=`Versi ${window.PETA_APP_VERSION||'14.7.0'} · Sinkron online selesai: ${changed} perubahan${removed?`, ${removed} dihapus`:''}.`;
+      return true;
     }catch(error){
       types.forEach(type=>pending.add(type));
       console.warn('Sinkronisasi Supabase gagal:',error);
       setStatus('error',navigator.onLine?'Sinkron gagal':'Offline · tersimpan lokal');
+      return false;
     }finally{
       syncing=false;
       if(pending.size&&navigator.onLine)setTimeout(()=>flush(),3000);
@@ -139,7 +145,7 @@
     pending.add(type);
     markDirty(type);
     clearTimeout(flushTimer);
-    flushTimer=setTimeout(()=>flush(),900);
+    flushTimer=setTimeout(()=>flush(),250);
   }
   async function initialSync(){
     const bridge=await waitForBridge();
@@ -148,7 +154,7 @@
     let cloud=await loadCloudState();
     const local=bridge.getState();
     if(cloud.vehicles.length){
-      const dirty=[...readDirty()].filter(type=>TABLES[type]);
+      const dirty=freshDirty();
       if(dirty.length){
         setStatus('syncing','Mengirim perubahan offline...');
         for(const type of dirty)await syncType(type);
@@ -170,7 +176,9 @@
     }
   }
   async function pull(){
-    if(!session||syncing)return;
+    if(!session)return;
+    if(pending.size||freshDirty().length){const saved=await flush();if(!saved)return;}
+    if(syncing)return;
     syncing=true;
     setStatus('syncing','Memperbarui...');
     try{

@@ -1,4 +1,4 @@
-const APP_VERSION='14.6.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='14.7.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -345,13 +345,17 @@ function mergeVehicle(oldRow,newRow){
   }
   return merged;
 }
-async function importFile(file){
+async function importFile(file,mode='update'){
   $('status').textContent='Membaca file dan menyiapkan data besar...';await sleep(20);
   const buf=await file.arrayBuffer();
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rawRows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'dd/mm/yyyy'});
   const rows=rawRows.map(normalizeRow).filter(row=>IMPORT_FIELDS.some(field=>hasValue(row[field])));
+  if(!rows.length)throw new Error('File tidak berisi data yang dapat dibaca.');
+  const replaceMode=mode==='replace';
+  const oldVehicles=vehicles;
+  if(replaceMode)vehicles=[];
   const frameIndex=new Map(),plateIndex=new Map(),customerModelIndex=new Map(),addUniqueIndex=(map,key,index)=>{if(!key)return;if(!map.has(key))map.set(key,index);else if(map.get(key)!==index)map.set(key,-1);};
   vehicles.forEach((v,i)=>{const frame=normalizeFrame(v['NO RANGKA']||v.NO_RANGKA||v.CHASSIS_NO),plate=normalizePlate(v.POLICE_NO),cm=`${identityText(v.CUSTOMER)}|${identityText(v.MODEL)}`;if(frame&&!frameIndex.has(frame))frameIndex.set(frame,i);if(plate&&!plateIndex.has(plate))plateIndex.set(plate,i);addUniqueIndex(customerModelIndex,cm,i);});
   let added=0,updated=0,unchanged=0;
@@ -372,8 +376,15 @@ async function importFile(file){
     }
     if((rowNumber+1)%500===0){$('status').textContent=`Memproses ${(rowNumber+1).toLocaleString('id-ID')} / ${rows.length.toLocaleString('id-ID')} data...`;await sleep(0);}
   }
-  searchIndexCache=new WeakMap();invalidateFollowUpLookup();const recovered=reconcileFollowUps();await Promise.all([saveData(),recovered?saveFollowUps():Promise.resolve()]);hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
-  $('status').textContent=`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama.${recovered?` ${recovered} status follow up lama dipulihkan.`:''} Kolom tambahan diabaikan.`;
+  searchIndexCache=new WeakMap();invalidateFollowUpLookup();const recovered=reconcileFollowUps();
+  const saved=await saveData();
+  if(!saved){vehicles=oldVehicles;throw new Error('Data tidak dapat disimpan di perangkat. Ruang penyimpanan mungkin penuh.');}
+  if(recovered)await saveFollowUps();
+  $('status').textContent=replaceMode?'Mengganti data online dan menghapus data lama...':'Menyimpan hasil upload ke database online...';
+  const cloudSaved=await window.CloudSync?.flush?.(['vehicles',...(recovered?['followUps']:[])]);
+  hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
+  const summary=replaceMode?`Ganti semua data selesai: ${vehicles.length.toLocaleString('id-ID')} data dari file aktif. Data lama yang tidak ada di file telah dihapus.`:`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama.`;
+  $('status').textContent=`${summary}${recovered?` ${recovered} status follow up lama dipulihkan.`:''}${cloudSaved===false?' Penyimpanan online belum selesai; tekan tombol Sinkron saat internet stabil.':' Data online sudah sinkron.'}`;
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function geocodeAddress(address){
@@ -505,7 +516,8 @@ $('closeLocationBtn').onclick=closeLocationEditor;$('cancelLocationBtn').onclick
 $('showFailedBtn').onclick=openFailedModal;$('closeModalBtn').onclick=closeModal;$('cancelEditBtn').onclick=()=>{$('editAddressBox').classList.add('hidden');editingVehicle=null;};$('addressModal').onclick=e=>{if(e.target===$('addressModal'))closeModal();};
 $('auditCoordinatesBtn').onclick=auditCoordinatesNow;
 $('stopBtn').onclick=()=>stopRequested=true;
-$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await importFile(f);}catch(err){alert('File gagal dibaca: '+err.message);}finally{e.target.value='';}};
+$('importMode').onchange=()=>{$('importModeHelp').textContent=$('importMode').value==='replace'?'Mode Ganti Semua menghapus kendaraan lama yang tidak ada di file baru setelah sinkron selesai.':'Mode Update mempertahankan data lama yang tidak ada di file.';};
+$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;const mode=$('importMode')?.value||'update';if(mode==='replace'&&!confirm(`Ganti SEMUA data kendaraan dengan isi file ${f.name}? Data lama yang tidak ada di file akan dihapus dari perangkat dan Supabase.`)){e.target.value='';return;}try{await importFile(f,mode);}catch(err){alert('File gagal diproses: '+err.message);}finally{e.target.value='';}};
 $('deleteAllBtn').onclick=()=>{if(!confirm('Hapus semua data kendaraan?'))return;vehicles=[];selectedFollowUps.clear();saveData();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Semua data kendaraan sudah dihapus.';};
 $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat ini akan diganti.'))return;vehicles=[...(window.DEFAULT_VEHICLES||[])];saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Data awal dipulihkan.';};
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
