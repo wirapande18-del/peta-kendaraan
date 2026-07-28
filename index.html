@@ -249,6 +249,103 @@ body.view-followup .list-card{grid-row:2/span 2}
 }
 body.view-map #dashboardView{display:none!important}
 
+
+
+/* ===== V16.1 HUAWEI TABLET EDITION ===== */
+:root{--app-vh:100dvh;--tablet-bottom-space:112px}
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%}
+body{height:100%;min-height:100%;overscroll-behavior:none}
+.app-header{flex-shrink:0}
+#appLayout,.dashboard-view{scrollbar-gutter:stable}
+
+/* Halaman selain peta harus selalu bisa digulir sampai tombol terakhir. */
+body.view-data #appLayout,
+body.view-followup #appLayout,
+body.view-settings #appLayout{
+  height:calc(var(--app-vh) - 77px)!important;
+  max-height:calc(var(--app-vh) - 77px)!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:var(--tablet-bottom-space)!important;
+}
+body.view-dashboard .dashboard-view{
+  height:calc(var(--app-vh) - 77px)!important;
+  max-height:calc(var(--app-vh) - 77px)!important;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:var(--tablet-bottom-space)!important;
+}
+body.view-map #appLayout{
+  height:calc(var(--app-vh) - 77px)!important;
+  max-height:calc(var(--app-vh) - 77px)!important;
+  min-height:360px;
+}
+body.view-map .left-sidebar,
+body.view-map .map-wrap{
+  height:100%!important;
+  min-height:0!important;
+}
+body.view-map .left-sidebar{
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:80px!important;
+}
+body.view-map .map-wrap,
+body.view-map #map{height:100%!important;min-height:0!important}
+.main-nav{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.modal{padding-bottom:max(18px,env(safe-area-inset-bottom))}
+.modal-box{max-height:calc(var(--app-vh) - 36px)!important;-webkit-overflow-scrolling:touch}
+
+/* Kontrol sentuh lebih nyaman di Huawei. */
+button,input,select,textarea{min-height:44px}
+button{touch-action:manipulation}
+.popup{min-width:min(330px,76vw);font-size:14px}
+.popup-actions a,.popup-actions button{min-height:42px;display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;font-size:13px}
+.leaflet-popup-content{margin:14px 16px!important;max-height:62dvh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+/* Tablet landscape: tetap desktop, tetapi lebih lapang dan bisa digulir. */
+@media (max-width:1400px), (pointer:coarse){
+  :root{--nav-width:210px;--tablet-bottom-space:128px}
+  .brand-mark{height:68px;padding:10px 14px}
+  .app-header{height:68px;padding:8px 16px;gap:10px}
+  .header-left h1{font-size:21px}
+  .header-right{gap:7px;flex-wrap:wrap;justify-content:flex-end}
+  .cloud-action,.version-badge,.status{min-height:38px}
+  body.view-data #appLayout,
+  body.view-followup #appLayout,
+  body.view-settings #appLayout,
+  body.view-dashboard .dashboard-view,
+  body.view-map #appLayout{
+    height:calc(var(--app-vh) - 68px)!important;
+    max-height:calc(var(--app-vh) - 68px)!important;
+  }
+  body.view-data #appLayout,body.view-settings #appLayout{padding:16px 20px var(--tablet-bottom-space)!important}
+  body.view-followup #appLayout{padding:16px 20px var(--tablet-bottom-space)!important}
+  .view-data .data-control-card{max-width:none;width:100%}
+  .card{margin-bottom:14px}
+  .action-grid button,.full{min-height:48px;font-size:15px}
+  .vehicle-item{padding:13px}
+  .vehicle-item b{font-size:15px}.vehicle-item span{font-size:13px}
+}
+
+@media (max-width:900px){
+  :root{--tablet-bottom-space:140px}
+  html,body{overflow:auto}
+  body{padding-left:0}
+  .app-header{position:sticky;top:0}
+  body.view-data #appLayout,
+  body.view-followup #appLayout,
+  body.view-settings #appLayout,
+  body.view-dashboard .dashboard-view{
+    height:auto!important;max-height:none!important;min-height:calc(var(--app-vh) - 68px);
+    overflow:visible!important;padding:12px 12px var(--tablet-bottom-space)!important;
+  }
+  body.view-map #appLayout{height:calc(var(--app-vh) - 68px)!important;max-height:none!important}
+  .view-data .data-control-card .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.view-followup .right-sidebar{display:block!important}
+  body.view-followup .right-sidebar>*{margin-bottom:14px}
+}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
@@ -330,7 +427,7 @@ window.DEFAULT_VEHICLES = [{"POLICE_NO":"DK-8324-K","CUSTOMER":"PEMERINTAH DESA 
     <button id="cloudSyncBtn" class="cloud-action" type="button" title="Sinkronkan sekarang">↻ Sinkron</button>
     <span id="cloudUserEmail" class="cloud-user"></span>
     <button id="cloudLogoutBtn" class="cloud-action" type="button">Keluar</button>
-    <span id="versionBadge" class="version-badge">Versi 16.0 Lite</span>
+    <span id="versionBadge" class="version-badge">Versi 16.1 Huawei</span>
     <div class="status" id="status">Peta siap digunakan</div>
     <button id="toggleRightSidebar" class="layout-toggle" type="button" title="Minimize/Maximize panel kanan">☷</button>
   </div>
@@ -926,7 +1023,7 @@ window.PETA_SUPABASE_CONFIG={
 
 </script>
 <script>
-const APP_VERSION='16.0.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='16.1.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -1976,6 +2073,20 @@ window.PetaCloudBridge={
   const saved=localStorage.getItem('vehicleMapActiveViewV16')||'map';switchView(saved);
 })();
 
+</script>
+
+<script>
+(function(){
+  function setHuaweiViewport(){
+    const h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+    document.documentElement.style.setProperty('--app-vh',Math.max(320,h)+'px');
+    try{ if(window.map&&typeof window.map.invalidateSize==='function') setTimeout(()=>window.map.invalidateSize(),80); }catch(_){ }
+  }
+  setHuaweiViewport();
+  window.addEventListener('resize',setHuaweiViewport,{passive:true});
+  window.addEventListener('orientationchange',()=>setTimeout(setHuaweiViewport,180),{passive:true});
+  if(window.visualViewport) window.visualViewport.addEventListener('resize',setHuaweiViewport,{passive:true});
+})();
 </script>
 </body>
 </html>
