@@ -1023,7 +1023,7 @@ window.PETA_SUPABASE_CONFIG={
 
 </script>
 <script>
-const APP_VERSION='16.1.0';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='16.1.1';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -1543,7 +1543,31 @@ $('auditCoordinatesBtn').onclick=auditCoordinatesNow;
 $('stopBtn').onclick=()=>stopRequested=true;
 $('importMode').onchange=()=>{$('importModeHelp').textContent=$('importMode').value==='replace'?'Mode Ganti Semua menghapus kendaraan lama yang tidak ada di file baru setelah sinkron selesai.':'Mode Update mempertahankan data lama yang tidak ada di file.';};
 $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;const mode=$('importMode')?.value||'update';if(mode==='replace'&&!confirm(`Ganti SEMUA data kendaraan dengan isi file ${f.name}? Data lama yang tidak ada di file akan dihapus dari perangkat dan Supabase.`)){e.target.value='';return;}try{await importFile(f,mode);}catch(err){alert('File gagal diproses: '+err.message);}finally{e.target.value='';}};
-$('deleteAllBtn').onclick=()=>{if(!confirm('Hapus semua data kendaraan?'))return;vehicles=[];selectedFollowUps.clear();saveData();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Semua data kendaraan sudah dihapus.';};
+$('deleteAllBtn').onclick=async()=>{
+  if(!confirm('Hapus semua data kendaraan dari perangkat dan database online?'))return;
+  const button=$('deleteAllBtn');
+  button.disabled=true;
+  $('status').textContent='Menghapus data dari perangkat dan Supabase...';
+  try{
+    vehicles=[];
+    selectedFollowUps.clear();
+    await saveData();
+    if(window.CloudSync){
+      const berhasil=await window.CloudSync.flush(['vehicles']);
+      if(!berhasil)throw new Error('Penghapusan ke database online gagal.');
+      await window.CloudSync.pull();
+    }
+    buildAdvisorFilter();
+    buildRegionFilters();
+    applyFilter();
+    $('status').textContent='Semua data kendaraan berhasil dihapus dari perangkat dan database online.';
+  }catch(error){
+    console.error(error);
+    $('status').textContent='Penghapusan online gagal: '+(error?.message||error);
+  }finally{
+    button.disabled=false;
+  }
+};
 $('restoreDefaultBtn').onclick=()=>{if(!confirm('Pulihkan data awal? Data saat ini akan diganti.'))return;vehicles=[...(window.DEFAULT_VEHICLES||[])];saveData();hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();$('status').textContent='Data awal dipulihkan.';};
 window.deleteOne=key=>{if(!confirm('Hapus kendaraan ini?'))return;vehicles=vehicles.filter(v=>normalizePlate(v.POLICE_NO)!==key);saveData();buildAdvisorFilter();applyFilter();};
 let searchTimer;$('searchInput').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>applyFilter(),250);};$('advisorFilter').onchange=applyFilter;$('regencyFilter').onchange=()=>{buildRegionFilters();applyFilter();};$('districtFilter').onchange=applyFilter;$('followUpStatusFilter').onchange=applyFilter;$('showAllBtn').onclick=()=>{$('searchInput').value='';$('advisorFilter').value='';$('regencyFilter').value='';buildRegionFilters();$('districtFilter').value='';$('followUpStatusFilter').value='';applyFilter();};$('selectVisibleBtn').onclick=()=>{filteredVehicles.forEach(v=>selectedFollowUps.add(followUpKey(v)));renderList();};$('clearSelectionBtn').onclick=()=>{selectedFollowUps.clear();renderList();};$('startBatchWaBtn').onclick=()=>{if(batchQueue.length&&batchIndex<batchQueue.length)return openNextBatchWa();batchQueue=vehicles.filter(v=>selectedFollowUps.has(followUpKey(v)));batchIndex=0;if(!batchQueue.length)return alert('Pilih minimal satu customer.');openNextBatchWa();};
