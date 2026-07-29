@@ -895,19 +895,18 @@ window.PETA_SUPABASE_CONFIG={
     syncing=true;
     setStatus('syncing','Mengganti seluruh data online...');
     try{
-      const table=TABLES.vehicles;
-      const {error:deleteError}=await client.from(table).delete().not('record_key','is',null);
+      const {error:deleteError}=await client.from(TABLES.vehicles).delete().not('record_key','is',null);
       if(deleteError)throw deleteError;
       known.vehicles.clear();
       const result=await syncType('vehicles',true);
       pending.delete('vehicles');
       clearDirty(['vehicles']);
-      setStatus('online','Tersimpan online');
+      setStatus('online',`${currentRows('vehicles').length.toLocaleString('id-ID')} data tersimpan`);
       return true;
     }catch(error){
       pending.add('vehicles');
       markDirty('vehicles');
-      console.warn('Ganti semua data Supabase gagal:',error);
+      console.warn('Ganti semua kendaraan gagal:',error);
       setStatus('error',navigator.onLine?'Ganti data online gagal':'Offline · tersimpan lokal');
       return false;
     }finally{
@@ -966,15 +965,12 @@ window.PETA_SUPABASE_CONFIG={
       }
       await bridge.applyState(cloud);
       setStatus('online',`${cloud.vehicles.length.toLocaleString('id-ID')} data online`);
-    }else if(local.vehicles.length){
-      setStatus('syncing',`Mengunggah ${local.vehicles.length.toLocaleString('id-ID')} data awal...`);
-      await syncType('vehicles',true);
-      await syncType('followUps',true);
-      await syncType('geoCache',true);
-      await syncType('settings',true);
-      clearDirty(Object.keys(TABLES));
-      setStatus('online',`${local.vehicles.length.toLocaleString('id-ID')} data tersimpan`);
     }else{
+      // Database online kosong harus tetap kosong.
+      // Jangan menghidupkan kembali data cache lama dari tablet.
+      pending.delete('vehicles');
+      clearDirty(['vehicles']);
+      await bridge.applyState(cloud);
       setStatus('online','Database online kosong');
     }
   }
@@ -1051,7 +1047,7 @@ window.PETA_SUPABASE_CONFIG={
 
 </script>
 <script>
-const APP_VERSION='16.1.2';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='16.2.0';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -1080,7 +1076,7 @@ const getPhone=v=>normalizePhone(getPhoneRaw(v));
 const normalizeAddress=s=>String(s||'').toUpperCase().replace(/\bJL\.?\b/g,'JALAN').replace(/\bJLN\.?\b/g,'JALAN').replace(/\bBR\.?\b/g,'BANJAR').replace(/\bDS\.?\b/g,'DESA').replace(/\bKEL\.?\b/g,'KELURAHAN').replace(/\bKEC\.?\b/g,'KECAMATAN').replace(/\bKAB\.?\b/g,'KABUPATEN').replace(/\bDPS\b/g,'DENPASAR').replace(/\bGYR\b/g,'GIANYAR').replace(/[;|]/g,',').replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').trim();
 const cacheKey=s=>normalizeAddress(s);
 const readJSON=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f;}catch{return f;}};
-let vehicles=readJSON(DATA_KEY,null)||readJSON('vehicleMapDataV3',null)||[...(window.DEFAULT_VEHICLES||[])];
+let vehicles=readJSON(DATA_KEY,null)||readJSON('vehicleMapDataV3',null)||[];
 vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_CP?{...v,TELEPHONE_CP:phone}:v;});
 let followUps=readJSON(FOLLOW_UP_KEY,{}),activeFollowUpVehicle=null,selectedFollowUps=new Set(),batchQueue=[],batchIndex=0;
 let geoCache=readJSON(GEO_KEY,null)||readJSON('vehicleMapGeocodeCacheV3',{})||{},filteredVehicles=[],stopRequested=false,markers=[],editingVehicle=null,manualMode=false,manualPreview=null;
@@ -1093,7 +1089,14 @@ async function loadLargeStoreData(){
   if(!window.BigStore)return;
   try{
     const [savedVehicles,savedGeo,savedFollowUps]=await Promise.all([BigStore.get('vehicles'),BigStore.get('geoCache'),BigStore.get('followUps')]);
-    if(Array.isArray(savedVehicles))vehicles=savedVehicles;else if(await saveData()){localStorage.removeItem(DATA_KEY);localStorage.removeItem('vehicleMapDataV3');}
+    if(Array.isArray(savedVehicles)){
+      vehicles=savedVehicles;
+    }else{
+      vehicles=[];
+      await BigStore.set('vehicles',[]);
+      localStorage.removeItem(DATA_KEY);
+      localStorage.removeItem('vehicleMapDataV3');
+    }
     if(savedGeo&&typeof savedGeo==='object')geoCache=savedGeo;else if(await saveGeo()){localStorage.removeItem(GEO_KEY);localStorage.removeItem('vehicleMapGeocodeCacheV3');}
     if(savedFollowUps&&typeof savedFollowUps==='object'){followUps=savedFollowUps;invalidateFollowUpLookup();}else await saveFollowUps();
     vehicles=vehicles.map(v=>{const phone=getPhoneRaw(v);return phone&&!v.TELEPHONE_CP?{...v,TELEPHONE_CP:phone}:v;});const recovered=reconcileFollowUps();if(recovered)await saveFollowUps();
@@ -1575,24 +1578,31 @@ $('stopBtn').onclick=()=>stopRequested=true;
 $('importMode').onchange=()=>{$('importModeHelp').textContent=$('importMode').value==='replace'?'Mode Ganti Semua menghapus kendaraan lama yang tidak ada di file baru setelah sinkron selesai.':'Mode Update mempertahankan data lama yang tidak ada di file.';};
 $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;const mode=$('importMode')?.value||'update';if(mode==='replace'&&!confirm(`Ganti SEMUA data kendaraan dengan isi file ${f.name}? Data lama yang tidak ada di file akan dihapus dari perangkat dan Supabase.`)){e.target.value='';return;}try{await importFile(f,mode);}catch(err){alert('File gagal diproses: '+err.message);}finally{e.target.value='';}};
 $('deleteAllBtn').onclick=async()=>{
-  if(!confirm('Hapus semua data kendaraan dari perangkat dan database online?'))return;
+  if(!confirm('Hapus semua data kendaraan dari tablet dan database online?'))return;
   const button=$('deleteAllBtn');
   button.disabled=true;
   $('status').textContent='Menghapus seluruh data kendaraan...';
   try{
     vehicles=[];
     selectedFollowUps.clear();
-    const saved=await saveData();
-    if(!saved)throw new Error('Penyimpanan perangkat gagal.');
+    searchIndexCache=new WeakMap();
+
+    localStorage.removeItem(DATA_KEY);
+    localStorage.removeItem('vehicleMapDataV3');
+    localStorage.removeItem('petaCloudDirtyV14');
+    localStorage.removeItem('petaCloudDirtyTimeV14');
+
+    await window.BigStore?.set('vehicles',[]);
     const cloudSaved=await window.CloudSync?.replaceVehicles?.();
-    if(cloudSaved===false)throw new Error('Penghapusan database online gagal.');
+    if(cloudSaved===false)throw new Error('Database online belum berhasil dikosongkan.');
+
     buildAdvisorFilter();
     buildRegionFilters();
     applyFilter();
-    $('status').textContent='Semua data kendaraan berhasil dihapus dari perangkat dan database online.';
+    $('status').textContent='Semua data kendaraan berhasil dihapus permanen dari tablet dan database online.';
   }catch(error){
     console.error(error);
-    $('status').textContent='Gagal menghapus seluruh data: '+(error?.message||error);
+    $('status').textContent='Penghapusan gagal: '+(error?.message||error);
   }finally{
     button.disabled=false;
   }
