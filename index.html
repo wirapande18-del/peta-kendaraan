@@ -886,6 +886,34 @@ window.PETA_SUPABASE_CONFIG={
     }
     return {changed:changed.length,removed:removed.length};
   }
+  async function replaceVehicles(){
+    if(!session)return false;
+    if(syncing){
+      for(let i=0;i<120&&syncing;i++)await sleep(50);
+      if(syncing)return false;
+    }
+    syncing=true;
+    setStatus('syncing','Mengganti seluruh data online...');
+    try{
+      const table=TABLES.vehicles;
+      const {error:deleteError}=await client.from(table).delete().not('record_key','is',null);
+      if(deleteError)throw deleteError;
+      known.vehicles.clear();
+      const result=await syncType('vehicles',true);
+      pending.delete('vehicles');
+      clearDirty(['vehicles']);
+      setStatus('online','Tersimpan online');
+      return true;
+    }catch(error){
+      pending.add('vehicles');
+      markDirty('vehicles');
+      console.warn('Ganti semua data Supabase gagal:',error);
+      setStatus('error',navigator.onLine?'Ganti data online gagal':'Offline · tersimpan lokal');
+      return false;
+    }finally{
+      syncing=false;
+    }
+  }
   async function flush(forceTypes=null){
     if(!session)return false;
     if(syncing){for(let i=0;i<100&&syncing;i++)await sleep(50);if(syncing)return false;}
@@ -1017,13 +1045,13 @@ window.PETA_SUPABASE_CONFIG={
     window.addEventListener('offline',()=>setStatus('offline','Offline · tersimpan lokal'));
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&session&&navigator.onLine)pull();});
   }
-  window.CloudSync={queue,flush,pull,currentUser:()=>window.PETA_CURRENT_USER||'Pengguna'};
+  window.CloudSync={queue,flush,pull,replaceVehicles,currentUser:()=>window.PETA_CURRENT_USER||'Pengguna'};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 
 </script>
 <script>
-const APP_VERSION='16.1.1';window.PETA_APP_VERSION=APP_VERSION;
+const APP_VERSION='16.1.2';window.PETA_APP_VERSION=APP_VERSION;
 const DATA_KEY='vehicleMapDataV4';
 const GEO_KEY='vehicleMapGeocodeCacheV4';
 const FOLLOW_UP_KEY='vehicleMapFollowUpV1';
@@ -1406,7 +1434,10 @@ async function importFile(file,mode='update'){
   if(!saved){vehicles=oldVehicles;throw new Error('Data tidak dapat disimpan di perangkat. Ruang penyimpanan mungkin penuh.');}
   if(recovered)await saveFollowUps();
   $('status').textContent=replaceMode?'Mengganti data online dan menghapus data lama...':'Menyimpan hasil upload ke database online...';
-  const cloudSaved=await window.CloudSync?.flush?.(['vehicles',...(recovered?['followUps']:[])]);
+  const cloudSaved=replaceMode
+    ? await window.CloudSync?.replaceVehicles?.()
+    : await window.CloudSync?.flush?.(['vehicles',...(recovered?['followUps']:[])]);
+  if(replaceMode&&recovered)await window.CloudSync?.flush?.(['followUps']);
   hydrateCoordinates();buildAdvisorFilter();buildRegionFilters();applyFilter();
   const summary=replaceMode?`Ganti semua data selesai: ${vehicles.length.toLocaleString('id-ID')} data dari file aktif. Data lama yang tidak ada di file telah dihapus.`:`Upload selesai: ${added} data baru, ${updated} data diperbarui, ${unchanged} data sama.`;
   $('status').textContent=`${summary}${recovered?` ${recovered} status follow up lama dipulihkan.`:''}${cloudSaved===false?' Penyimpanan online belum selesai; tekan tombol Sinkron saat internet stabil.':' Data online sudah sinkron.'}`;
@@ -1547,23 +1578,21 @@ $('deleteAllBtn').onclick=async()=>{
   if(!confirm('Hapus semua data kendaraan dari perangkat dan database online?'))return;
   const button=$('deleteAllBtn');
   button.disabled=true;
-  $('status').textContent='Menghapus data dari perangkat dan Supabase...';
+  $('status').textContent='Menghapus seluruh data kendaraan...';
   try{
     vehicles=[];
     selectedFollowUps.clear();
-    await saveData();
-    if(window.CloudSync){
-      const berhasil=await window.CloudSync.flush(['vehicles']);
-      if(!berhasil)throw new Error('Penghapusan ke database online gagal.');
-      await window.CloudSync.pull();
-    }
+    const saved=await saveData();
+    if(!saved)throw new Error('Penyimpanan perangkat gagal.');
+    const cloudSaved=await window.CloudSync?.replaceVehicles?.();
+    if(cloudSaved===false)throw new Error('Penghapusan database online gagal.');
     buildAdvisorFilter();
     buildRegionFilters();
     applyFilter();
     $('status').textContent='Semua data kendaraan berhasil dihapus dari perangkat dan database online.';
   }catch(error){
     console.error(error);
-    $('status').textContent='Penghapusan online gagal: '+(error?.message||error);
+    $('status').textContent='Gagal menghapus seluruh data: '+(error?.message||error);
   }finally{
     button.disabled=false;
   }
